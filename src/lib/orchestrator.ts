@@ -39,6 +39,18 @@ const newId = () =>
   globalThis.crypto?.randomUUID?.() ??
   `run_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
+/**
+ * Stable-ish name for this device, used as the `runs.claimed_by` lock.
+ *
+ * A run executed locally is stamped with this at creation time, so this host's
+ * own queue worker does not turn around and claim its own row.
+ */
+export const localHostName = () =>
+  `${navigator.platform || "host"}-${currentUserId()}`;
+
+/** True when this device can spawn Claude Code itself. */
+const canRunLocally = () => isTauri() && useApp.getState().hostCanRun;
+
 // ------------------------------------------------------------- run bookkeeping
 
 interface LiveRun {
@@ -271,6 +283,7 @@ export async function dispatchTurn(
 ): Promise<string> {
   const runId = newId();
   const pack = await packFor(project, channel, agent);
+  const local = canRunLocally();
 
   const placeholder = await pb.collection("messages").create<Message>({
     project: project.id,
@@ -283,6 +296,9 @@ export async function dispatchTurn(
     context_tokens: pack.tokens,
   });
 
+  // A run this device is about to execute is created already claimed. Creating
+  // it as "queued" would make this host's own queue worker claim it and spawn a
+  // second process for the same runId.
   const runRecord = await pb.collection("runs").create<Run>({
     project: project.id,
     channel: channel.id,
@@ -290,11 +306,13 @@ export async function dispatchTurn(
     message: placeholder.id,
     run_id: runId,
     prompt,
-    status: "queued",
+    status: local ? "running" : "queued",
+    claimed_by: local ? localHostName() : "",
+    started: local ? new Date().toISOString() : "",
     context_tokens: pack.tokens,
   });
 
-  if (!isTauri() || !useApp.getState().hostCanRun) {
+  if (!local) {
     // No local CLI: leave it queued for a desktop host.
     return runId;
   }
@@ -402,13 +420,16 @@ export async function cancelRun(runId: string) {
  * row means one update lands and the loser re-reads a row that is no longer
  * queued.
  */
-export function startQueueWorker(hostName: string): () => void {
+export function startQueueWorker(): () => void {
   if (!isTauri()) return () => {};
 
+  const hostName = localHostName();
   let stopped = false;
 
   const claim = async (run: Run) => {
     if (stopped || run.status !== "queued" || run.claimed_by) return;
+    // Never touch a run this device is already executing.
+    if (live.has(run.run_id)) return;
     try {
       await pb.collection("runs").update(run.id, {
         status: "running",

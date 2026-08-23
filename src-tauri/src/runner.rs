@@ -132,12 +132,23 @@ pub struct RunRegistry {
 }
 
 impl RunRegistry {
-    fn insert(&self, run_id: String, handle: RunHandle) {
-        self.runs.lock().unwrap().insert(run_id, handle);
+    /// Register a run. Returns false when `run_id` is already executing —
+    /// overwriting would drop the live run's cancel channel and kill it.
+    fn insert(&self, run_id: String, handle: RunHandle) -> bool {
+        let mut runs = self.runs.lock().unwrap();
+        if runs.contains_key(&run_id) {
+            return false;
+        }
+        runs.insert(run_id, handle);
+        true
     }
 
     fn remove(&self, run_id: &str) -> Option<RunHandle> {
         self.runs.lock().unwrap().remove(run_id)
+    }
+
+    fn contains(&self, run_id: &str) -> bool {
+        self.runs.lock().unwrap().contains_key(run_id)
     }
 
     fn active(&self) -> Vec<(String, String)> {
@@ -277,6 +288,10 @@ pub async fn run_agent(
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
+    if registry.contains(&request.run_id) {
+        return Err(format!("run '{}' is already executing", request.run_id));
+    }
+
     let mut cmd = build_command(&request, &session_id);
     let mut child = cmd
         .spawn()
@@ -292,14 +307,22 @@ pub async fn run_agent(
         let _ = stdin.shutdown().await;
     });
 
-    let (cancel_tx, mut cancel_rx) = oneshot::channel::<()>();
-    registry.insert(
+    let (cancel_tx, cancel_rx) = oneshot::channel::<()>();
+    let registered = registry.insert(
         request.run_id.clone(),
         RunHandle {
             agent_id: request.agent_id.clone(),
             cancel: Some(cancel_tx),
         },
     );
+    if !registered {
+        // Lost a race with another caller using the same id.
+        let _ = child.kill().await;
+        return Err(format!("run '{}' is already executing", request.run_id));
+    }
+    // `None` once the channel has resolved, so the select arm below is never
+    // polled after completion.
+    let mut cancel_rx = Some(cancel_rx);
 
     let _ = app.emit(
         "agent://start",
@@ -341,10 +364,20 @@ pub async fn run_agent(
 
         loop {
             tokio::select! {
-                _ = &mut cancel_rx => {
-                    cancelled = true;
-                    let _ = child.kill().await;
-                    break;
+                signal = async {
+                    match cancel_rx.as_mut() {
+                        Some(rx) => rx.await,
+                        None => std::future::pending().await,
+                    }
+                } => {
+                    // A dropped sender is not a cancellation — only an explicit
+                    // send is. Stop watching either way.
+                    cancel_rx = None;
+                    if signal.is_ok() {
+                        cancelled = true;
+                        let _ = child.kill().await;
+                        break;
+                    }
                 }
                 line = reader.next_line() => {
                     match line {

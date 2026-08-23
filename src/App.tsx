@@ -4,7 +4,7 @@ import Sidebar from "./components/Sidebar";
 import Chat from "./components/Chat";
 import AgentEditor from "./components/AgentEditor";
 import TerminalPane from "./components/Terminal";
-import { pb, isAuthed, currentUserId } from "./lib/pb";
+import { pb, isAuthed } from "./lib/pb";
 import { claudeDoctor, hostInfo, isTauri } from "./lib/bridge";
 import { initRunListeners, startQueueWorker } from "./lib/orchestrator";
 import { useApp } from "./store";
@@ -45,7 +45,7 @@ export default function App() {
   // A desktop host also serves runs queued by phones.
   useEffect(() => {
     if (!authed || !hostCanRun || !isTauri()) return;
-    const stop = startQueueWorker(`${navigator.platform}-${currentUserId()}`);
+    const stop = startQueueWorker();
     return stop;
   }, [authed, hostCanRun]);
 

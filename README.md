@@ -480,6 +480,18 @@ if the binary is behind a shim (nvm, volta).
 **Turns stay `queued` forever.** No device is running the queue worker. The
 desktop app must be open, authenticated, and reporting `runner ready`.
 
+**Replies come back empty with `runs.status = cancelled`, `exit_code = 1`.**
+Two processes were started for one `runId`, and registering the second dropped
+the first one's cancel channel. A run executed locally must be created with
+`status: "running"` and `claimed_by` already set, so this host's own queue
+worker skips it; `run_agent` also rejects a `runId` that is already executing.
+
+**A channel only ever talks to one agent.** A relation field with
+`maxSelect: 0` is *single*-select in PocketBase, not unlimited — set it to a
+number above 1. Migration `1756000100_multi_relations.js` fixes
+`channels.agents` and `projects.members`; records written before it still hold a
+single id and need re-saving.
+
 **`fetch failed ECONNREFUSED` from Node or the app.** WSL is not forwarding
 localhost. See [WSL networking](#wsl-networking-important).
 

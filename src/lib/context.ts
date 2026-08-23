@@ -108,15 +108,18 @@ export async function remember(params: {
  * transcript stays clean while the facts become durable context.
  */
 export function harvestFacts(reply: string): { body: string; facts: string[] } {
-  const match = reply.match(/^\s*FACTS:\s*$/im);
+  // The marker may stand alone or carry the first fact on the same line.
+  const match = reply.match(/^[ \t]*FACTS:[ \t]*(.*)$/im);
   if (!match || match.index === undefined) return { body: reply, facts: [] };
 
   const body = reply.slice(0, match.index).trimEnd();
-  const tail = reply.slice(match.index + match[0].length);
+  const tail = [match[1], reply.slice(match.index + match[0].length)].join("\n");
+
   const facts = tail
     .split("\n")
     .map((line) => line.replace(/^\s*[-*•]\s*/, "").trim())
-    .filter((line) => line.length > 3)
+    // "none" is the agent saying the turn produced nothing worth storing.
+    .filter((line) => line.length > 3 && !/^(none|n\/a|nothing)\.?$/i.test(line))
     .slice(0, 5);
 
   return { body, facts };
