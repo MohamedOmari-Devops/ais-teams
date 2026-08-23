@@ -419,9 +419,13 @@ and survives a reload.
 
 ### Stage 5 — the UI
 
-Sidebar (projects / channels / agents), chat pane with live drafts and a token
-meter, agent editor mapping every profile field to a CLI flag, PTY terminal
-pane. **Checkpoint:** you can create an agent, add it to a channel, and talk to
+Sidebar (projects / channels / agents), chat pane with a token meter, agent
+editor mapping every profile field to a CLI flag, PTY terminal pane.
+
+Render each turn exactly once: a message in `pending`/`streaming` shows as an
+avatar plus animated dots (one circle per working agent, messenger style) and
+becomes a bubble only when it settles. Rendering both the placeholder row *and*
+the live draft is what makes two agents look like four conversations. **Checkpoint:** you can create an agent, add it to a channel, and talk to
 it without touching the database.
 
 ### Stage 6 — mobile

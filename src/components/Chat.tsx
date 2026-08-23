@@ -2,11 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../store";
 import { broadcast, cancelRun, pickTargets } from "../lib/orchestrator";
 import { estimateTokens } from "../lib/bridge";
-import type { Message } from "../lib/types";
+import type { Agent, Message } from "../lib/types";
 
-/** Chat pane: transcript, live drafts, composer, per-turn cost preview. */
+/** A turn in this state has no bubble yet — it shows up as an avatar + dots. */
+const IN_FLIGHT: Message["status"][] = ["pending", "streaming"];
+
+/** Chat pane: transcript, typing indicator, composer, per-turn cost preview. */
 export default function Chat() {
-  const { project, channel, agents, messages, drafts, hostCanRun } = useApp();
+  const { project, channel, agents, messages, hostCanRun } = useApp();
   const [text, setText] = useState("");
   const [tokens, setTokens] = useState(0);
   const [sending, setSending] = useState(false);
@@ -17,9 +20,13 @@ export default function Chat() {
     [agents],
   );
 
+  // A turn is rendered exactly once: as dots while it runs, as a bubble after.
+  const settled = messages.filter((m) => !IN_FLIGHT.includes(m.status));
+  const pending = messages.filter((m) => IN_FLIGHT.includes(m.status));
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, drafts]);
+  }, [settled.length, pending.length]);
 
   useEffect(() => {
     let alive = true;
@@ -51,10 +58,6 @@ export default function Chat() {
     }
   }
 
-  const liveDrafts = Object.values(drafts).filter(
-    (d) => d.channelId === channel.id,
-  );
-
   return (
     <section className="flex h-full flex-1 flex-col">
       <header className="flex items-center gap-3 border-b border-ink-700 px-4 py-3">
@@ -71,7 +74,7 @@ export default function Chat() {
       </header>
 
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
-        {messages.map((m) => (
+        {settled.map((m) => (
           <Bubble
             key={m.id}
             message={m}
@@ -80,31 +83,9 @@ export default function Chat() {
           />
         ))}
 
-        {liveDrafts.map((d) => (
-          <div key={d.runId} className="max-w-3xl">
-            <div className="mb-1 flex items-center gap-2">
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{ background: agentById[d.agentId]?.avatar_color || "#7c5cff" }}
-              />
-              <span className="text-xs font-medium">
-                {agentById[d.agentId]?.name ?? "agent"}
-              </span>
-              <span className="font-mono text-[10px] text-fog-300">
-                ctx {d.contextTokens}t
-              </span>
-              <button
-                onClick={() => void cancelRun(d.runId)}
-                className="text-[10px] text-bad hover:underline"
-              >
-                stop
-              </button>
-            </div>
-            <pre className="caret whitespace-pre-wrap rounded-lg border border-ink-600 bg-ink-800 p-3 font-mono text-[12px] leading-relaxed">
-              {d.text}
-            </pre>
-          </div>
-        ))}
+        {pending.length > 0 && (
+          <Typing pending={pending} agentById={agentById} />
+        )}
         <div ref={endRef} />
       </div>
 
@@ -143,6 +124,62 @@ export default function Chat() {
         </div>
       </footer>
     </section>
+  );
+}
+
+/**
+ * One row for every agent currently working, messenger style: overlapping
+ * avatars, animated dots, no text. The reply appears as a bubble only once the
+ * turn finishes, so a turn is never on screen twice.
+ */
+function Typing({
+  pending,
+  agentById,
+}: {
+  pending: Message[];
+  agentById: Record<string, Agent>;
+}) {
+  const names = pending.map((m) => agentById[m.author_agent]?.name ?? "agent");
+  const label =
+    names.length === 1
+      ? `${names[0]} is thinking`
+      : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]} are thinking`;
+
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex">
+        {pending.map((m, i) => {
+          const agent = agentById[m.author_agent];
+          return (
+            <span
+              key={m.id}
+              title={agent?.name}
+              className={`flex h-7 w-7 items-center justify-center rounded-full border-2 border-ink-900 text-[10px] font-semibold text-white ${
+                i > 0 ? "-ml-2" : ""
+              }`}
+              style={{ background: agent?.avatar_color || "#7c5cff" }}
+            >
+              {(agent?.name ?? "?").charAt(0).toUpperCase()}
+            </span>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center gap-1 rounded-full border border-ink-600 bg-ink-800 px-3 py-2.5">
+        <span className="typing-dot h-1.5 w-1.5 rounded-full bg-fog-300" />
+        <span className="typing-dot h-1.5 w-1.5 rounded-full bg-fog-300" />
+        <span className="typing-dot h-1.5 w-1.5 rounded-full bg-fog-300" />
+      </div>
+
+      <span className="text-[11px] text-fog-300">{label}</span>
+
+      <button
+        onClick={() => pending.forEach((m) => void cancelRun(m.run_id))}
+        className="text-[10px] text-bad hover:underline"
+      >
+        stop
+      </button>
+    </div>
   );
 }
 
