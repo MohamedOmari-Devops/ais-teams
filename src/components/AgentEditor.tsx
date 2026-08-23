@@ -1,6 +1,23 @@
 import { useState } from "react";
+import {
+  Box,
+  Button,
+  Drawer,
+  FormControl,
+  FormControlLabel,
+  IconButton,
+  InputLabel,
+  MenuItem,
+  Select,
+  Stack,
+  Switch,
+  TextField,
+  Typography,
+} from "@mui/material";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { pb } from "../lib/pb";
 import { useApp } from "../store";
+import { ink, fog } from "../theme";
 import type { Agent } from "../lib/types";
 
 const MODELS = ["", "fable", "opus", "sonnet", "haiku"];
@@ -48,6 +65,9 @@ export default function AgentEditor({
   const set = <K extends keyof Agent>(key: K, value: Agent[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  const list = (value: string) =>
+    value.split(",").map((s) => s.trim()).filter(Boolean);
+
   async function save() {
     if (!project || !form.name?.trim()) return;
     setBusy(true);
@@ -91,250 +111,241 @@ export default function AgentEditor({
   }
 
   return (
-    <div className="absolute inset-0 z-30 flex justify-end bg-black/60">
-      <div className="flex h-full w-[460px] flex-col border-l border-ink-600 bg-ink-800">
-        <header className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
-          <h3 className="text-sm font-semibold">
-            {agent ? `Agent · ${agent.name}` : "New agent"}
-          </h3>
-          <button onClick={onClose} className="text-fog-300 hover:text-fog-100">
-            ✕
-          </button>
-        </header>
+    <Drawer
+      anchor="right"
+      open
+      onClose={onClose}
+      slotProps={{
+        paper: {
+          sx: {
+            width: 470,
+            backgroundColor: ink[800],
+            borderLeft: `1px solid ${ink[600]}`,
+            backgroundImage: "none",
+          },
+        },
+      }}
+    >
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          px: 2,
+          py: 1.5,
+          borderBottom: `1px solid ${ink[600]}`,
+        }}
+      >
+        <Typography sx={{ fontSize: 14, fontWeight: 600, flex: 1 }}>
+          {agent ? `Agent · ${agent.name}` : "New agent"}
+        </Typography>
+        <IconButton size="small" onClick={onClose}>
+          <CloseRoundedIcon sx={{ fontSize: 16 }} />
+        </IconButton>
+      </Box>
 
-        <div className="flex-1 space-y-3 overflow-y-auto p-4">
-          <Field label="Name">
-            <input
-              className={inputCls}
-              value={form.name ?? ""}
-              onChange={(e) => set("name", e.target.value)}
-              placeholder="backend"
-            />
-          </Field>
+      <Stack spacing={2.5} sx={{ flex: 1, overflowY: "auto", p: 2 }}>
+        <TextField
+          label="Name"
+          size="small"
+          fullWidth
+          value={form.name ?? ""}
+          onChange={(e) => set("name", e.target.value)}
+          placeholder="backend"
+        />
 
-          <Field label="Role (shown in the roster)">
-            <input
-              className={inputCls}
-              value={form.role ?? ""}
-              onChange={(e) => set("role", e.target.value)}
-              placeholder="owns the API and migrations"
-            />
-          </Field>
+        <TextField
+          label="Role"
+          size="small"
+          fullWidth
+          value={form.role ?? ""}
+          onChange={(e) => set("role", e.target.value)}
+          placeholder="owns the API and migrations"
+        />
 
-          <Field label="Instructions (becomes --append-system-prompt)">
-            <textarea
-              rows={7}
-              className={inputCls}
-              value={form.instructions ?? ""}
-              onChange={(e) => set("instructions", e.target.value)}
-              placeholder="You own the Rust backend. Prefer small diffs. Never touch the UI."
-            />
-          </Field>
+        <TextField
+          label="Instructions"
+          size="small"
+          fullWidth
+          multiline
+          minRows={7}
+          value={form.instructions ?? ""}
+          onChange={(e) => set("instructions", e.target.value)}
+          helperText="Sent as --append-system-prompt on every turn"
+          placeholder="You own the Rust backend. Prefer small diffs. Never touch the UI."
+        />
 
-          <div className="grid grid-cols-3 gap-2">
-            <Field label="Model">
-              <select
-                className={inputCls}
-                value={form.model ?? ""}
-                onChange={(e) => set("model", e.target.value)}
-              >
-                {MODELS.map((m) => (
-                  <option key={m} value={m}>
-                    {m || "project default"}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Effort">
-              <select
-                className={inputCls}
-                value={form.effort ?? ""}
-                onChange={(e) => set("effort", e.target.value as Agent["effort"])}
-              >
-                {EFFORTS.map((m) => (
-                  <option key={m} value={m}>
-                    {m || "default"}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Permissions">
-              <select
-                className={inputCls}
-                value={form.permission_mode ?? ""}
-                onChange={(e) =>
-                  set("permission_mode", e.target.value as Agent["permission_mode"])
-                }
-              >
-                {MODES.map((m) => (
-                  <option key={m} value={m}>
-                    {m || "default"}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-
-          <Field label="Extra context lanes (comma separated)">
-            <input
-              className={inputCls}
-              value={(form.lanes ?? []).join(", ")}
-              onChange={(e) =>
-                set(
-                  "lanes",
-                  e.target.value
-                    .split(",")
-                    .map((s) => s.trim())
-                    .filter(Boolean),
-                )
-              }
-              placeholder="infra, auth"
-            />
-          </Field>
-
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Allowed tools">
-              <input
-                className={inputCls}
-                value={(form.allowed_tools ?? []).join(", ")}
-                onChange={(e) =>
-                  set(
-                    "allowed_tools",
-                    e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
-                  )
-                }
-                placeholder="Read, Grep, Bash(git *)"
-              />
-            </Field>
-            <Field label="Denied tools">
-              <input
-                className={inputCls}
-                value={(form.disallowed_tools ?? []).join(", ")}
-                onChange={(e) =>
-                  set(
-                    "disallowed_tools",
-                    e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
-                  )
-                }
-                placeholder="WebFetch"
-              />
-            </Field>
-          </div>
-
-          <Field label="Context budget (tokens per turn)">
-            <input
-              type="number"
-              className={inputCls}
-              value={form.context_budget ?? 3000}
-              onChange={(e) => set("context_budget", Number(e.target.value))}
-            />
-          </Field>
-
-          <div className="flex flex-wrap gap-4 pt-1">
-            <Toggle
-              label="enabled"
-              value={form.enabled ?? true}
-              onChange={(v) => set("enabled", v)}
-            />
-            <Toggle
-              label="bare (skip hooks/plugins)"
-              value={form.bare ?? false}
-              onChange={(v) => set("bare", v)}
-            />
-            <Toggle
-              label="verbose output"
-              value={form.verbose_output ?? false}
-              onChange={(v) => set("verbose_output", v)}
-            />
-          </div>
-
-          <Field label="Colour">
-            <div className="flex gap-2">
-              {COLORS.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => set("avatar_color", c)}
-                  className={`h-6 w-6 rounded-full ${
-                    form.avatar_color === c ? "ring-2 ring-fog-100" : ""
-                  }`}
-                  style={{ background: c }}
-                />
+        <Stack direction="row" spacing={1.5}>
+          <FormControl size="small" fullWidth>
+            <InputLabel>Model</InputLabel>
+            <Select
+              label="Model"
+              value={form.model ?? ""}
+              onChange={(e) => set("model", e.target.value)}
+            >
+              {MODELS.map((m) => (
+                <MenuItem key={m} value={m}>
+                  {m || "project default"}
+                </MenuItem>
               ))}
-            </div>
-          </Field>
+            </Select>
+          </FormControl>
 
-          {error && <p className="text-xs text-bad">{error}</p>}
-        </div>
+          <FormControl size="small" fullWidth>
+            <InputLabel>Effort</InputLabel>
+            <Select
+              label="Effort"
+              value={form.effort ?? ""}
+              onChange={(e) => set("effort", e.target.value as Agent["effort"])}
+            >
+              {EFFORTS.map((m) => (
+                <MenuItem key={m} value={m}>
+                  {m || "default"}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Stack>
 
-        <footer className="flex items-center gap-2 border-t border-ink-700 p-3">
-          {agent && channel && (
-            <button
-              onClick={() => void toggleChannelMembership()}
-              className="rounded-md border border-ink-600 px-3 py-1.5 text-xs text-fog-300"
-            >
-              {channel.agents?.includes(agent.id)
-                ? `remove from #${channel.name}`
-                : `add to #${channel.name}`}
-            </button>
-          )}
-          {agent && (
-            <button
-              onClick={() => void remove()}
-              className="text-xs text-bad hover:underline"
-            >
-              delete
-            </button>
-          )}
-          <button
-            onClick={() => void save()}
-            disabled={busy}
-            className="ml-auto rounded-md bg-accent px-4 py-1.5 text-xs font-medium disabled:opacity-50"
+        <FormControl size="small" fullWidth>
+          <InputLabel>Permission mode</InputLabel>
+          <Select
+            label="Permission mode"
+            value={form.permission_mode ?? ""}
+            onChange={(e) =>
+              set("permission_mode", e.target.value as Agent["permission_mode"])
+            }
           >
-            Save
-          </button>
-        </footer>
-      </div>
-    </div>
-  );
-}
+            {MODES.map((m) => (
+              <MenuItem key={m} value={m}>
+                {m || "default"}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
 
-const inputCls =
-  "w-full rounded-md border border-ink-600 bg-ink-700 px-3 py-2 text-xs outline-none focus:border-accent";
+        <TextField
+          label="Extra context lanes"
+          size="small"
+          fullWidth
+          value={(form.lanes ?? []).join(", ")}
+          onChange={(e) => set("lanes", list(e.target.value))}
+          helperText="Comma separated. The channel's own lane is always readable."
+          placeholder="infra, auth"
+        />
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-[10px] uppercase tracking-wider text-fog-300">
-        {label}
-      </span>
-      {children}
-    </label>
-  );
-}
+        <Stack direction="row" spacing={1.5}>
+          <TextField
+            label="Allowed tools"
+            size="small"
+            fullWidth
+            value={(form.allowed_tools ?? []).join(", ")}
+            onChange={(e) => set("allowed_tools", list(e.target.value))}
+            placeholder="Read, Grep, Bash(git *)"
+          />
+          <TextField
+            label="Denied tools"
+            size="small"
+            fullWidth
+            value={(form.disallowed_tools ?? []).join(", ")}
+            onChange={(e) => set("disallowed_tools", list(e.target.value))}
+            placeholder="WebFetch"
+          />
+        </Stack>
 
-function Toggle({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="flex items-center gap-2 text-xs text-fog-300">
-      <input
-        type="checkbox"
-        checked={value}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      {label}
-    </label>
+        <TextField
+          label="Context budget (tokens per turn)"
+          size="small"
+          type="number"
+          fullWidth
+          value={form.context_budget ?? 3000}
+          onChange={(e) => set("context_budget", Number(e.target.value))}
+        />
+
+        <Stack direction="row" sx={{ flexWrap: "wrap" }}>
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={form.enabled ?? true}
+                onChange={(e) => set("enabled", e.target.checked)}
+              />
+            }
+            label={<Typography sx={{ fontSize: 12 }}>enabled</Typography>}
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={form.bare ?? false}
+                onChange={(e) => set("bare", e.target.checked)}
+              />
+            }
+            label={<Typography sx={{ fontSize: 12 }}>bare</Typography>}
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={form.verbose_output ?? false}
+                onChange={(e) => set("verbose_output", e.target.checked)}
+              />
+            }
+            label={<Typography sx={{ fontSize: 12 }}>verbose output</Typography>}
+          />
+        </Stack>
+
+        <Box>
+          <Typography sx={{ fontSize: 10, textTransform: "uppercase", color: fog[300], mb: 1 }}>
+            Colour
+          </Typography>
+          <Stack direction="row" spacing={1}>
+            {COLORS.map((c) => (
+              <Box
+                key={c}
+                onClick={() => set("avatar_color", c)}
+                sx={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: "50%",
+                  cursor: "pointer",
+                  background: c,
+                  outline: form.avatar_color === c ? `2px solid ${fog[100]}` : "none",
+                  outlineOffset: 2,
+                }}
+              />
+            ))}
+          </Stack>
+        </Box>
+
+        {error && <Typography sx={{ fontSize: 12, color: "error.main" }}>{error}</Typography>}
+      </Stack>
+
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          p: 1.5,
+          borderTop: `1px solid ${ink[600]}`,
+        }}
+      >
+        {agent && channel && (
+          <Button size="small" variant="outlined" color="inherit" onClick={() => void toggleChannelMembership()}>
+            {channel.agents?.includes(agent.id)
+              ? `remove from #${channel.name}`
+              : `add to #${channel.name}`}
+          </Button>
+        )}
+        {agent && (
+          <Button size="small" color="error" onClick={() => void remove()}>
+            delete
+          </Button>
+        )}
+        <Box sx={{ flex: 1 }} />
+        <Button size="small" variant="contained" onClick={() => void save()} disabled={busy}>
+          Save
+        </Button>
+      </Box>
+    </Drawer>
   );
 }

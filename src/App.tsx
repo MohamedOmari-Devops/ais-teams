@@ -4,6 +4,7 @@ import Sidebar from "./components/Sidebar";
 import Chat from "./components/Chat";
 import AgentEditor from "./components/AgentEditor";
 import TerminalPane from "./components/Terminal";
+import TitleBar from "./components/TitleBar";
 import { pb, isAuthed } from "./lib/pb";
 import { claudeDoctor, hostInfo, isTauri } from "./lib/bridge";
 import { initRunListeners, startQueueWorker } from "./lib/orchestrator";
@@ -125,10 +126,27 @@ export default function App() {
     };
   }, [project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!authed) return <Login onDone={() => setAuthed(true)} />;
+  const subtitle = project
+    ? `${project.name}${channel ? ` · #${channel.name}` : ""}`
+    : undefined;
+
+  // Everything lives inside the rounded shell, including the login screen —
+  // the window is frameless, so the app draws its own chrome.
+  if (!authed) {
+    return (
+      <div className="app-shell">
+        <TitleBar />
+        <div className="flex-1 overflow-hidden">
+          <Login onDone={() => setAuthed(true)} />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="relative flex h-full">
+    <div className="app-shell">
+      <TitleBar subtitle={subtitle} />
+      <div className="relative flex flex-1 overflow-hidden">
       <Sidebar
         projects={projects}
         onReload={() => {
@@ -163,6 +181,7 @@ export default function App() {
           }}
         />
       )}
+      </div>
     </div>
   );
 }

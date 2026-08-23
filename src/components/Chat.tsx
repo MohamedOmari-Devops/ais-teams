@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Box, Button, Chip, TextField, Tooltip, Typography } from "@mui/material";
+import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import { useApp } from "../store";
 import { broadcast, cancelRun, pickTargets } from "../lib/orchestrator";
 import { estimateTokens } from "../lib/bridge";
+import { ink, fog } from "../theme";
 import type { Agent, Message } from "../lib/types";
 
 /** A turn in this state has no bubble yet — it shows up as an avatar + dots. */
@@ -38,9 +41,18 @@ export default function Chat() {
 
   if (!project || !channel) {
     return (
-      <div className="flex flex-1 items-center justify-center text-sm text-fog-300">
+      <Box
+        sx={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 13,
+          color: fog[300],
+        }}
+      >
         Pick a channel, or create one.
-      </div>
+      </Box>
     );
   }
 
@@ -59,21 +71,46 @@ export default function Chat() {
   }
 
   return (
-    <section className="flex h-full flex-1 flex-col">
-      <header className="flex items-center gap-3 border-b border-ink-700 px-4 py-3">
-        <h2 className="text-sm font-semibold">#{channel.name}</h2>
-        <span className="rounded bg-ink-700 px-1.5 py-0.5 font-mono text-[10px] text-fog-300">
-          lane:{channel.lane}
-        </span>
+    <Box sx={{ display: "flex", flexDirection: "column", flex: 1, height: "100%" }}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1.5,
+          px: 2,
+          py: 1.5,
+          borderBottom: `1px solid ${ink[600]}`,
+        }}
+      >
+        <Typography sx={{ fontSize: 14, fontWeight: 600 }}>#{channel.name}</Typography>
+        <Chip
+          size="small"
+          label={`lane:${channel.lane}`}
+          sx={{ bgcolor: ink[700], fontFamily: "var(--font-mono)", fontSize: 10, height: 20 }}
+        />
         {channel.topic && (
-          <span className="truncate text-xs text-fog-300">{channel.topic}</span>
+          <Tooltip title={channel.topic}>
+            <Typography
+              sx={{
+                fontSize: 12,
+                color: fog[300],
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                maxWidth: 420,
+              }}
+            >
+              {channel.topic}
+            </Typography>
+          </Tooltip>
         )}
-        <span className="ml-auto text-[11px] text-fog-300">
+        <Box sx={{ flex: 1 }} />
+        <Typography sx={{ fontSize: 11, color: fog[300] }}>
           {channel.agents?.length ?? 0} agent(s)
-        </span>
-      </header>
+        </Typography>
+      </Box>
 
-      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+      <Box sx={{ flex: 1, overflowY: "auto", px: 2, py: 2, "& > * + *": { mt: 2 } }}>
         {settled.map((m) => (
           <Bubble
             key={m.id}
@@ -83,20 +120,22 @@ export default function Chat() {
           />
         ))}
 
-        {pending.length > 0 && (
-          <Typing pending={pending} agentById={agentById} />
-        )}
+        {pending.length > 0 && <Typing pending={pending} agentById={agentById} />}
         <div ref={endRef} />
-      </div>
+      </Box>
 
-      <footer className="border-t border-ink-700 p-3">
+      <Box sx={{ borderTop: `1px solid ${ink[600]}`, p: 1.5 }}>
         {!hostCanRun && (
-          <p className="mb-2 text-[11px] text-warn">
+          <Typography sx={{ fontSize: 11, color: "warning.main", mb: 1 }}>
             No local Claude Code on this device — turns are queued for a desktop
             host to execute.
-          </p>
+          </Typography>
         )}
-        <textarea
+        <TextField
+          fullWidth
+          multiline
+          rows={3}
+          size="small"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
@@ -105,25 +144,28 @@ export default function Chat() {
               void send();
             }
           }}
-          rows={3}
           placeholder={`Message #${channel.name}   (@agent to target one)`}
-          className="w-full resize-none rounded-md border border-ink-600 bg-ink-700 p-3 text-sm outline-none focus:border-accent"
         />
-        <div className="mt-2 flex items-center gap-3 text-[11px] text-fog-300">
-          <span className="font-mono">~{tokens}t in</span>
-          <span>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mt: 1 }}>
+          <Typography sx={{ fontFamily: "var(--font-mono)", fontSize: 11, color: fog[300] }}>
+            ~{tokens}t in
+          </Typography>
+          <Typography sx={{ fontSize: 11, color: fog[300] }}>
             → {targets.length ? targets.map((a) => a.name).join(", ") : "nobody"}
-          </span>
-          <button
+          </Typography>
+          <Box sx={{ flex: 1 }} />
+          <Button
+            size="small"
+            variant="contained"
+            endIcon={<SendRoundedIcon sx={{ fontSize: 15 }} />}
             onClick={() => void send()}
             disabled={sending || !text.trim() || targets.length === 0}
-            className="ml-auto rounded-md bg-accent px-3 py-1 text-xs font-medium text-white disabled:opacity-40"
           >
             Send
-          </button>
-        </div>
-      </footer>
-    </section>
+          </Button>
+        </Box>
+      </Box>
+    </Box>
   );
 }
 
@@ -146,40 +188,63 @@ function Typing({
       : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]} are thinking`;
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="flex">
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+      <Box sx={{ display: "flex" }}>
         {pending.map((m, i) => {
           const agent = agentById[m.author_agent];
           return (
-            <span
-              key={m.id}
-              title={agent?.name}
-              className={`flex h-7 w-7 items-center justify-center rounded-full border-2 border-ink-900 text-[10px] font-semibold text-white ${
-                i > 0 ? "-ml-2" : ""
-              }`}
-              style={{ background: agent?.avatar_color || "#7c5cff" }}
-            >
-              {(agent?.name ?? "?").charAt(0).toUpperCase()}
-            </span>
+            <Tooltip key={m.id} title={agent?.name ?? "agent"}>
+              <Box
+                sx={{
+                  width: 28,
+                  height: 28,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "50%",
+                  border: `2px solid ${ink[900]}`,
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: "#fff",
+                  ml: i > 0 ? "-8px" : 0,
+                  background: agent?.avatar_color || "#7c5cff",
+                }}
+              >
+                {(agent?.name ?? "?").charAt(0).toUpperCase()}
+              </Box>
+            </Tooltip>
           );
         })}
-      </div>
+      </Box>
 
-      <div className="flex items-center gap-1 rounded-full border border-ink-600 bg-ink-800 px-3 py-2.5">
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 0.5,
+          px: 1.5,
+          py: 1.25,
+          borderRadius: "999px",
+          border: `1px solid ${ink[600]}`,
+          backgroundColor: ink[800],
+        }}
+      >
         <span className="typing-dot h-1.5 w-1.5 rounded-full bg-fog-300" />
         <span className="typing-dot h-1.5 w-1.5 rounded-full bg-fog-300" />
         <span className="typing-dot h-1.5 w-1.5 rounded-full bg-fog-300" />
-      </div>
+      </Box>
 
-      <span className="text-[11px] text-fog-300">{label}</span>
+      <Typography sx={{ fontSize: 11, color: fog[300] }}>{label}</Typography>
 
-      <button
+      <Button
+        size="small"
+        color="error"
         onClick={() => pending.forEach((m) => void cancelRun(m.run_id))}
-        className="text-[10px] text-bad hover:underline"
+        sx={{ fontSize: 10, minWidth: 0 }}
       >
         stop
-      </button>
-    </div>
+      </Button>
+    </Box>
   );
 }
 
@@ -194,34 +259,47 @@ function Bubble({
 }) {
   const isUser = message.author_type === "user";
   return (
-    <div className="max-w-3xl">
-      <div className="mb-1 flex items-center gap-2">
-        <span
-          className="h-2 w-2 rounded-full"
-          style={{ background: isUser ? "#3fbf7f" : color || "#7c5cff" }}
+    <Box sx={{ maxWidth: 780 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+        <Box
+          sx={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            background: isUser ? "#3fbf7f" : color || "#7c5cff",
+          }}
         />
-        <span className="text-xs font-medium">
+        <Typography sx={{ fontSize: 12, fontWeight: 500 }}>
           {isUser ? "you" : (agentName ?? message.author_type)}
-        </span>
-        <span className="font-mono text-[10px] text-fog-300">
+        </Typography>
+        <Typography sx={{ fontFamily: "var(--font-mono)", fontSize: 10, color: fog[300] }}>
           {new Date(message.created).toLocaleTimeString()}
-        </span>
+        </Typography>
         {message.context_tokens > 0 && (
-          <span className="font-mono text-[10px] text-fog-300">
+          <Typography sx={{ fontFamily: "var(--font-mono)", fontSize: 10, color: fog[300] }}>
             ctx {message.context_tokens}t
-          </span>
+          </Typography>
         )}
         {message.status === "error" && (
-          <span className="text-[10px] text-bad">error</span>
+          <Typography sx={{ fontSize: 10, color: "error.main" }}>error</Typography>
         )}
-      </div>
-      <pre
-        className={`whitespace-pre-wrap rounded-lg p-3 font-mono text-[12px] leading-relaxed ${
-          isUser ? "bg-ink-700" : "border border-ink-600 bg-ink-800"
-        }`}
+      </Box>
+      <Box
+        component="pre"
+        sx={{
+          m: 0,
+          p: 1.5,
+          borderRadius: "10px",
+          whiteSpace: "pre-wrap",
+          fontFamily: "var(--font-mono)",
+          fontSize: 12,
+          lineHeight: 1.65,
+          backgroundColor: isUser ? ink[700] : ink[800],
+          border: isUser ? "none" : `1px solid ${ink[600]}`,
+        }}
       >
         {message.body || (message.error ? message.error : "…")}
-      </pre>
-    </div>
+      </Box>
+    </Box>
   );
 }

@@ -37,6 +37,7 @@ nothing raw is ever sent to a model twice.
 - **Channels, not chat windows.** A project is split into channels; each channel
   owns a *context lane*. `#backend` writes to lane `infra`, `#decisions` writes
   to lane `decisions`. Agents read only the lanes they are entitled to.
+  Double-click a channel to set its roster, its description and its project.
 - **Agents with profiles.** Every agent has its own persona, model, effort
   level, permission mode, tool allowlist and token budget. The persona is
   injected as `--append-system-prompt`; the rest map onto Claude Code CLI flags.
@@ -257,10 +258,13 @@ ais-teams/
 ├── src/                          React frontend
 │   ├── App.tsx                   auth gate, subscriptions, layout
 │   ├── store.ts                  zustand: project/channel/messages/drafts
+│   ├── theme.ts                  MUI dark theme (shared palette with Tailwind)
 │   ├── components/
+│   │   ├── TitleBar.tsx          custom chrome for the frameless window
 │   │   ├── Login.tsx             auth + PocketBase URL
 │   │   ├── Sidebar.tsx           projects, channels, agent roster
-│   │   ├── Chat.tsx              transcript, live drafts, composer
+│   │   ├── ChannelDialog.tsx     channel settings (agents, description, project)
+│   │   ├── Chat.tsx              transcript, typing indicator, composer
 │   │   ├── AgentEditor.tsx       per-agent profile (maps to CLI flags)
 │   │   └── Terminal.tsx          PTY pane running the real TUI
 │   └── lib/
@@ -420,7 +424,21 @@ and survives a reload.
 ### Stage 5 — the UI
 
 Sidebar (projects / channels / agents), chat pane with a token meter, agent
-editor mapping every profile field to a CLI flag, PTY terminal pane.
+editor mapping every profile field to a CLI flag, PTY terminal pane. MUI
+supplies the controls; Tailwind stays for layout. Both read the same palette —
+MUI from `src/theme.ts`, Tailwind from the `@theme` block in `index.css` — so
+changing a colour means changing it in two places.
+
+The window is frameless (`decorations: false`, `transparent: true`) and draws
+its own chrome in `TitleBar.tsx`. Two consequences worth remembering: nothing
+above `.app-shell` may paint a background or the rounded corners disappear, and
+the caption area needs `data-tauri-drag-region` plus the `core:window` minimise
+/ maximise / close permissions in `capabilities/default.json`.
+
+Double-clicking a channel opens its settings — which agents answer there, what
+the channel is for, and which project owns it. The description is not
+decoration: it is prepended to the context pack, so it steers every turn in
+that channel without touching any agent's persona.
 
 Render each turn exactly once: a message in `pending`/`streaming` shows as an
 avatar plus animated dots (one circle per working agent, messenger style) and

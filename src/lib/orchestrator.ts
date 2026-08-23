@@ -51,6 +51,18 @@ export const localHostName = () =>
 /** True when this device can spawn Claude Code itself. */
 const canRunLocally = () => isTauri() && useApp.getState().hostCanRun;
 
+/**
+ * Prefix the context pack with what this channel is for.
+ *
+ * The channel description is the cheapest steering available: a couple of lines
+ * that scope the turn without touching any agent's persona.
+ */
+function channelBrief(channel: Channel, pack: string): string {
+  const header = [`## CHANNEL #${channel.name} (lane: ${channel.lane})`];
+  if (channel.topic?.trim()) header.push(channel.topic.trim());
+  return [header.join("\n"), pack].filter(Boolean).join("\n\n");
+}
+
 // ------------------------------------------------------------- run bookkeeping
 
 interface LiveRun {
@@ -284,6 +296,7 @@ export async function dispatchTurn(
   const runId = newId();
   const pack = await packFor(project, channel, agent);
   const local = canRunLocally();
+  const brief = channelBrief(channel, pack.text);
 
   const placeholder = await pb.collection("messages").create<Message>({
     project: project.id,
@@ -338,7 +351,7 @@ export async function dispatchTurn(
       cwd: project.root_path || ".",
       prompt,
       instructions: agent.instructions,
-      contextPack: pack.text,
+      contextPack: brief,
       model: agent.model || project.default_model || undefined,
       resumeSessionId: (await resumeIdFor(agent.id, channel.id)) || undefined,
       permissionMode: agent.permission_mode || undefined,
@@ -465,7 +478,7 @@ export function startQueueWorker(): () => void {
       cwd: project.root_path || ".",
       prompt: run.prompt,
       instructions: agent.instructions,
-      contextPack: pack.text,
+      contextPack: channelBrief(channel, pack.text),
       model: agent.model || project.default_model || undefined,
       resumeSessionId: (await resumeIdFor(agent.id, channel.id)) || undefined,
       permissionMode: agent.permission_mode || undefined,

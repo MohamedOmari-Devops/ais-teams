@@ -1,6 +1,26 @@
 import { useState } from "react";
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  MenuItem,
+  Select,
+  TextField,
+  Tooltip,
+  Typography,
+} from "@mui/material";
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
+import FolderRoundedIcon from "@mui/icons-material/FolderRounded";
+import TagRoundedIcon from "@mui/icons-material/TagRounded";
+import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import { pb, currentUserId, logout } from "../lib/pb";
 import { useApp } from "../store";
+import ChannelDialog from "./ChannelDialog";
+import { ink, fog, accent } from "../theme";
 import type { Agent, Channel, Project } from "../lib/types";
 
 interface Props {
@@ -12,14 +32,14 @@ interface Props {
 /**
  * Project switcher, channel list, agent roster.
  *
- * Channels are the unit of context: each one owns a lane, and creating a
- * channel is how a project gets split into cheap, separately-remembered
- * conversations.
+ * Channels are the unit of context: each one owns a lane. Double-click a
+ * channel to open its settings — agents, description, project.
  */
 export default function Sidebar({ projects, onReload, onEditAgent }: Props) {
   const { project, channel, channels, agents, setProject, setChannel } = useApp();
   const [creating, setCreating] = useState<"channel" | "project" | null>(null);
   const [draft, setDraft] = useState("");
+  const [settingsFor, setSettingsFor] = useState<Channel | null>(null);
 
   async function createProject(name: string) {
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -47,59 +67,136 @@ export default function Sidebar({ projects, onReload, onEditAgent }: Props) {
     });
     setChannel(created);
     onReload();
+    // Straight into settings: a channel with no agents cannot answer.
+    setSettingsFor(created);
   }
 
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r border-ink-700 bg-ink-800">
-      <div className="border-b border-ink-700 p-3">
-        <select
-          className="w-full rounded-md border border-ink-600 bg-ink-700 px-2 py-1.5 text-sm outline-none"
-          value={project?.id ?? ""}
+      <Box sx={{ p: 1.5, borderBottom: `1px solid ${ink[600]}` }}>
+        {/* Google-style switcher: filled tonal surface, no hard outline. */}
+        <Select
+          fullWidth
+          size="small"
+          displayEmpty
+          value={projects.some((p) => p.id === project?.id) ? project!.id : ""}
           onChange={(e) => {
             const next = projects.find((p) => p.id === e.target.value) ?? null;
             setProject(next);
             setChannel(null);
           }}
+          IconComponent={ExpandMoreRoundedIcon}
+          renderValue={(value) => (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+              <FolderRoundedIcon sx={{ fontSize: 16, color: accent }} />
+              <Box
+                sx={{
+                  fontSize: 13,
+                  fontWeight: 500,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {projects.find((p) => p.id === value)?.name ?? "No project"}
+              </Box>
+            </Box>
+          )}
+          sx={{
+            borderRadius: "14px",
+            backgroundColor: ink[700],
+            transition: "background-color .15s ease",
+            "&:hover": { backgroundColor: ink[600] },
+            "& .MuiOutlinedInput-notchedOutline": { border: "none" },
+            "&.Mui-focused": { backgroundColor: ink[600] },
+            "& .MuiSelect-select": { py: 1.1 },
+          }}
+          MenuProps={{
+            slotProps: {
+              paper: { sx: { mt: 0.5, borderRadius: "14px", minWidth: 232 } },
+            },
+          }}
         >
-          {projects.length === 0 && <option value="">no projects</option>}
           {projects.map((p) => (
-            <option key={p.id} value={p.id}>
+            <MenuItem key={p.id} value={p.id} sx={{ fontSize: 13, borderRadius: "8px", mx: 0.5 }}>
+              <FolderRoundedIcon sx={{ fontSize: 16, mr: 1, color: fog[300] }} />
               {p.name}
-            </option>
+            </MenuItem>
           ))}
-        </select>
-        <button
+          {projects.length === 0 && (
+            <MenuItem value="" disabled sx={{ fontSize: 13 }}>
+              No projects yet
+            </MenuItem>
+          )}
+        </Select>
+
+        <Button
+          fullWidth
+          size="small"
+          startIcon={<AddRoundedIcon sx={{ fontSize: 16 }} />}
           onClick={() => {
             setCreating("project");
             setDraft("");
           }}
-          className="mt-2 w-full rounded-md border border-ink-600 py-1 text-xs text-fog-300 hover:text-fog-100"
+          sx={{
+            mt: 1,
+            color: fog[300],
+            fontSize: 12,
+            borderRadius: "12px",
+            "&:hover": { backgroundColor: ink[700], color: fog[100] },
+          }}
         >
-          + new project
-        </button>
-        {project?.root_path ? (
-          <p className="mt-2 truncate font-mono text-[10px] text-fog-300" title={project.root_path}>
-            {project.root_path}
-          </p>
-        ) : (
-          <p className="mt-2 text-[10px] text-warn">no root_path set — agents run in "."</p>
-        )}
-      </div>
+          New project
+        </Button>
 
-      <Section title="Channels" onAdd={() => { setCreating("channel"); setDraft(""); }}>
+        {project?.root_path ? (
+          <Tooltip title={project.root_path}>
+            <Typography
+              sx={{
+                mt: 1,
+                fontFamily: "var(--font-mono)",
+                fontSize: 10,
+                color: fog[300],
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {project.root_path}
+            </Typography>
+          </Tooltip>
+        ) : (
+          <Typography sx={{ mt: 1, fontSize: 10, color: "#e0a44a" }}>
+            no root_path set — agents run in "."
+          </Typography>
+        )}
+      </Box>
+
+      <Section
+        title="Channels"
+        hint="double-click to configure"
+        onAdd={() => {
+          setCreating("channel");
+          setDraft("");
+        }}
+      >
         {channels.map((c) => (
           <button
             key={c.id}
             onClick={() => setChannel(c)}
-            className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm ${
+            onDoubleClick={() => setSettingsFor(c)}
+            title={c.topic || "double-click for settings"}
+            className={`flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left text-sm ${
               channel?.id === c.id
                 ? "bg-accent-soft text-fog-100"
                 : "text-fog-300 hover:bg-ink-700"
             }`}
           >
-            <span className="text-fog-300">#</span>
+            <TagRoundedIcon sx={{ fontSize: 13, opacity: 0.6 }} />
             <span className="truncate">{c.name}</span>
-            <span className="ml-auto font-mono text-[10px] text-fog-300">{c.lane}</span>
+            <span className="ml-auto shrink-0 font-mono text-[10px] text-fog-300">
+              {c.agents?.length ?? 0}
+            </span>
           </button>
         ))}
       </Section>
@@ -109,7 +206,7 @@ export default function Sidebar({ projects, onReload, onEditAgent }: Props) {
           <button
             key={a.id}
             onClick={() => onEditAgent(a)}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm text-fog-300 hover:bg-ink-700"
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-sm text-fog-300 hover:bg-ink-700"
           >
             <span
               className="h-2 w-2 shrink-0 rounded-full"
@@ -123,46 +220,77 @@ export default function Sidebar({ projects, onReload, onEditAgent }: Props) {
         ))}
       </Section>
 
-      <div className="mt-auto border-t border-ink-700 p-3">
-        <button
+      <Box sx={{ mt: "auto", p: 1.5, borderTop: `1px solid ${ink[600]}` }}>
+        <Button
+          size="small"
+          startIcon={<LogoutRoundedIcon sx={{ fontSize: 15 }} />}
           onClick={() => {
             logout();
             location.reload();
           }}
-          className="text-xs text-fog-300 hover:text-fog-100"
+          sx={{ color: fog[300], fontSize: 11, borderRadius: "10px" }}
         >
-          sign out
-        </button>
-      </div>
+          Sign out
+        </Button>
+      </Box>
 
-      {creating && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60">
-          <div className="w-80 rounded-lg border border-ink-600 bg-ink-800 p-4">
-            <p className="mb-2 text-sm">
-              New {creating === "project" ? "project" : "channel"} name
-            </p>
-            <input
-              autoFocus
-              className="w-full rounded-md border border-ink-600 bg-ink-700 px-3 py-2 text-sm outline-none focus:border-accent"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={async (e) => {
-                if (e.key !== "Enter" || !draft.trim()) return;
-                if (creating === "project") await createProject(draft.trim());
-                else await createChannel(draft.trim());
-                setCreating(null);
-              }}
-            />
-            <div className="mt-3 flex justify-end gap-2">
-              <button
-                className="text-xs text-fog-300"
-                onClick={() => setCreating(null)}
-              >
-                cancel
-              </button>
-            </div>
-          </div>
-        </div>
+      <Dialog
+        open={creating !== null}
+        onClose={() => setCreating(null)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle sx={{ fontSize: 15, fontWeight: 600 }}>
+          New {creating === "project" ? "project" : "channel"}
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            size="small"
+            label="Name"
+            sx={{ mt: 1 }}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={async (e) => {
+              if (e.key !== "Enter" || !draft.trim()) return;
+              const value = draft.trim();
+              setCreating(null);
+              if (creating === "project") await createProject(value);
+              else await createChannel(value);
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button size="small" color="inherit" onClick={() => setCreating(null)}>
+            Cancel
+          </Button>
+          <Button
+            size="small"
+            variant="contained"
+            disabled={!draft.trim()}
+            onClick={async () => {
+              const value = draft.trim();
+              const mode = creating;
+              setCreating(null);
+              if (mode === "project") await createProject(value);
+              else await createChannel(value);
+            }}
+          >
+            Create
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {settingsFor && (
+        <ChannelDialog
+          channel={settingsFor}
+          projects={projects}
+          onClose={(changed) => {
+            setSettingsFor(null);
+            if (changed) onReload();
+          }}
+        />
       )}
     </aside>
   );
@@ -170,24 +298,56 @@ export default function Sidebar({ projects, onReload, onEditAgent }: Props) {
 
 function Section({
   title,
+  hint,
   onAdd,
   children,
 }: {
   title: string;
+  hint?: string;
   onAdd: () => void;
   children: React.ReactNode;
 }) {
   return (
-    <div className="border-b border-ink-700 p-2">
-      <div className="mb-1 flex items-center justify-between px-1">
-        <span className="text-[10px] uppercase tracking-wider text-fog-300">
-          {title}
-        </span>
-        <button onClick={onAdd} className="text-fog-300 hover:text-fog-100">
-          +
-        </button>
-      </div>
-      <div className="max-h-56 space-y-0.5 overflow-y-auto">{children}</div>
-    </div>
+    <Box sx={{ p: 1, borderBottom: `1px solid ${ink[600]}` }}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          px: 0.5,
+          mb: 0.5,
+        }}
+      >
+        <Tooltip title={hint ?? ""} placement="right">
+          <Typography
+            sx={{
+              fontSize: 10,
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              color: fog[300],
+            }}
+          >
+            {title}
+          </Typography>
+        </Tooltip>
+        <Button
+          onClick={onAdd}
+          sx={{
+            minWidth: 24,
+            width: 24,
+            height: 24,
+            p: 0,
+            borderRadius: "8px",
+            color: fog[300],
+            "&:hover": { backgroundColor: ink[700], color: fog[100] },
+          }}
+        >
+          <AddRoundedIcon sx={{ fontSize: 15 }} />
+        </Button>
+      </Box>
+      <Box sx={{ maxHeight: 224, overflowY: "auto", "& > * + *": { mt: "2px" } }}>
+        {children}
+      </Box>
+    </Box>
   );
 }

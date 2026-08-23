@@ -1,5 +1,14 @@
 import { useState } from "react";
+import {
+  Box,
+  Button,
+  Paper,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
 import { login, pbUrl, setPbUrl, signup } from "../lib/pb";
+import { fog } from "../theme";
 
 /**
  * Auth plus server address in one screen.
@@ -33,70 +42,84 @@ export default function Login({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <div className="flex h-full items-center justify-center bg-ink-900">
-      <form
+    <Box
+      sx={{
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Paper
+        component="form"
         onSubmit={submit}
-        className="w-[380px] rounded-xl border border-ink-600 bg-ink-800 p-6 shadow-2xl"
+        elevation={0}
+        sx={{ width: 400, p: 4, borderRadius: "16px", border: "1px solid", borderColor: "divider" }}
       >
-        <h1 className="mb-1 text-lg font-semibold">AIS Teams</h1>
-        <p className="mb-5 text-xs text-fog-300">
+        <Typography sx={{ fontSize: 18, fontWeight: 600 }}>AIS Teams</Typography>
+        <Typography sx={{ fontSize: 12, color: fog[300], mb: 3 }}>
           Agent workspace backed by your own PocketBase.
-        </p>
+        </Typography>
 
-        <label className="mb-1 block text-xs text-fog-300">PocketBase URL</label>
-        <input
-          className="mb-3 w-full rounded-md border border-ink-600 bg-ink-700 px-3 py-2 font-mono text-xs outline-none focus:border-accent"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="http://127.0.0.1:8090"
-        />
+        <Stack spacing={2}>
+          <TextField
+            label="PocketBase URL"
+            size="small"
+            fullWidth
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="http://127.0.0.1:8090"
+            slotProps={{ input: { sx: { fontFamily: "var(--font-mono)", fontSize: 12 } } }}
+          />
 
-        {mode === "signup" && (
-          <>
-            <label className="mb-1 block text-xs text-fog-300">Name</label>
-            <input
-              className="mb-3 w-full rounded-md border border-ink-600 bg-ink-700 px-3 py-2 text-sm outline-none focus:border-accent"
+          {mode === "signup" && (
+            <TextField
+              label="Name"
+              size="small"
+              fullWidth
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
-          </>
-        )}
+          )}
 
-        <label className="mb-1 block text-xs text-fog-300">Email</label>
-        <input
-          className="mb-3 w-full rounded-md border border-ink-600 bg-ink-700 px-3 py-2 text-sm outline-none focus:border-accent"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          type="email"
-          autoComplete="username"
-        />
+          <TextField
+            label="Email"
+            type="email"
+            size="small"
+            fullWidth
+            autoComplete="username"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
 
-        <label className="mb-1 block text-xs text-fog-300">Password</label>
-        <input
-          className="mb-4 w-full rounded-md border border-ink-600 bg-ink-700 px-3 py-2 text-sm outline-none focus:border-accent"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          type="password"
-          autoComplete="current-password"
-        />
+          <TextField
+            label="Password"
+            type="password"
+            size="small"
+            fullWidth
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
 
-        {error && <p className="mb-3 text-xs text-bad">{error}</p>}
+          {error && (
+            <Typography sx={{ fontSize: 12, color: "error.main" }}>{error}</Typography>
+          )}
 
-        <button
-          disabled={busy}
-          className="w-full rounded-md bg-accent px-3 py-2 text-sm font-medium disabled:opacity-50"
-        >
-          {busy ? "…" : mode === "login" ? "Sign in" : "Create account"}
-        </button>
+          <Button type="submit" variant="contained" disabled={busy} fullWidth>
+            {busy ? "…" : mode === "login" ? "Sign in" : "Create account"}
+          </Button>
 
-        <button
-          type="button"
-          onClick={() => setMode(mode === "login" ? "signup" : "login")}
-          className="mt-3 w-full text-center text-xs text-fog-300 hover:text-fog-100"
-        >
-          {mode === "login" ? "Create an account" : "I already have an account"}
-        </button>
-      </form>
-    </div>
+          <Button
+            size="small"
+            color="inherit"
+            onClick={() => setMode(mode === "login" ? "signup" : "login")}
+            sx={{ color: fog[300], fontSize: 12 }}
+          >
+            {mode === "login" ? "Create an account" : "I already have an account"}
+          </Button>
+        </Stack>
+      </Paper>
+    </Box>
   );
 }
