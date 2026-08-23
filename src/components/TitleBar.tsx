@@ -5,6 +5,7 @@ import CropSquareRoundedIcon from "@mui/icons-material/CropSquareRounded";
 import FilterNoneRoundedIcon from "@mui/icons-material/FilterNoneRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
+import ExtensionRoundedIcon from "@mui/icons-material/ExtensionRounded";
 import { isTauri } from "../lib/bridge";
 import { ink, fog } from "../theme";
 
@@ -18,10 +19,13 @@ import { ink, fog } from "../theme";
 export default function TitleBar({
   subtitle,
   onOpenSettings,
+  onOpenPlugins,
 }: {
   subtitle?: string;
   /** Opens project settings. Omitted before sign-in, where there is none. */
   onOpenSettings?: () => void;
+  /** Opens the plugin browser. Omitted before sign-in. */
+  onOpenPlugins?: () => void;
 }) {
   const [maximized, setMaximized] = useState(false);
 
@@ -105,6 +109,14 @@ export default function TitleBar({
           </Box>
         )}
       </Box>
+
+      {onOpenPlugins && (
+        <Tooltip title="Plugins">
+          <IconButton size="small" onClick={onOpenPlugins}>
+            <ExtensionRoundedIcon sx={{ fontSize: 15 }} />
+          </IconButton>
+        </Tooltip>
+      )}
 
       {onOpenSettings && (
         <Tooltip title="Project settings">

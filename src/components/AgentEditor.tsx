@@ -12,6 +12,7 @@ import {
   Stack,
   Switch,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
@@ -57,6 +58,7 @@ export default function AgentEditor({
       enabled: true,
       bare: false,
       verbose_output: false,
+      chrome: false,
     },
   );
   const [busy, setBusy] = useState(false);
@@ -291,6 +293,20 @@ export default function AgentEditor({
               />
             }
             label={<Typography sx={{ fontSize: 12 }}>verbose output</Typography>}
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={form.chrome ?? false}
+                onChange={(e) => set("chrome", e.target.checked)}
+              />
+            }
+            label={
+              <Tooltip title="Lets this agent drive your browser (--chrome). Requires the Claude in Chrome extension.">
+                <Typography sx={{ fontSize: 12 }}>Claude in Chrome</Typography>
+              </Tooltip>
+            }
           />
         </Stack>
 

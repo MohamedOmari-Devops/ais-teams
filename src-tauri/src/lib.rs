@@ -11,6 +11,7 @@
 
 mod agentfiles;
 mod context;
+mod plugins;
 mod runner;
 
 #[cfg(desktop)]
@@ -89,6 +90,13 @@ pub fn run() {
             default_context_budget,
             host_info,
             agentfiles::scan_agent_files,
+            plugins::plugin_catalog,
+            plugins::plugin_install,
+            plugins::plugin_uninstall,
+            plugins::plugin_set_enabled,
+            plugins::plugin_update,
+            plugins::marketplace_add,
+            plugins::marketplace_remove,
             runner::run_agent,
             runner::cancel_agent_run,
             runner::active_runs,

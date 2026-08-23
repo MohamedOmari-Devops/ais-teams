@@ -6,6 +6,7 @@ import AgentEditor from "./components/AgentEditor";
 import TerminalPane from "./components/Terminal";
 import TitleBar from "./components/TitleBar";
 import ProjectDialog from "./components/ProjectDialog";
+import PluginsDialog from "./components/PluginsDialog";
 import { pb, isAuthed } from "./lib/pb";
 import { claudeDoctor, hostInfo, isTauri } from "./lib/bridge";
 import { initRunListeners, startQueueWorker } from "./lib/orchestrator";
@@ -21,6 +22,7 @@ export default function App() {
   const [projectPanel, setProjectPanel] = useState<Project | null | undefined>(
     undefined,
   );
+  const [showPlugins, setShowPlugins] = useState(false);
 
   const {
     project,
@@ -153,6 +155,7 @@ export default function App() {
       <TitleBar
         subtitle={subtitle}
         onOpenSettings={project ? () => setProjectPanel(project) : undefined}
+        onOpenPlugins={() => setShowPlugins(true)}
       />
       <div className="relative flex flex-1 overflow-hidden">
       <Sidebar
@@ -189,6 +192,8 @@ export default function App() {
           }}
         />
       )}
+
+      {showPlugins && <PluginsDialog onClose={() => setShowPlugins(false)} />}
 
       {projectPanel !== undefined && (
         <ProjectDialog

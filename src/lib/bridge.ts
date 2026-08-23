@@ -6,7 +6,13 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { AgentFile, AgentRunRequest, ContextPack, HostInfo } from "./types";
+import type {
+  AgentFile,
+  AgentRunRequest,
+  ContextPack,
+  HostInfo,
+  PluginCatalog,
+} from "./types";
 
 export const isTauri = (): boolean =>
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -159,6 +165,40 @@ export async function pickFolder(title: string): Promise<string> {
   const picked = await open({ directory: true, multiple: false, title });
   return typeof picked === "string" ? picked : "";
 }
+
+// ------------------------------------------------------------------- plugins
+
+/**
+ * Installed plugins, everything installable from configured marketplaces, and
+ * the marketplaces themselves.
+ *
+ * These are the CLI's own plugins, so anything installed here is also visible
+ * to a plain `claude` session.
+ */
+export async function pluginCatalog(): Promise<PluginCatalog> {
+  if (!isTauri()) {
+    return { installed: [], available: [], marketplaces: [] };
+  }
+  return invoke<PluginCatalog>("plugin_catalog");
+}
+
+export const pluginInstall = (pluginId: string, scope: string, cwd?: string) =>
+  invoke<string>("plugin_install", { pluginId, scope, cwd });
+
+export const pluginUninstall = (pluginId: string, cwd?: string) =>
+  invoke<string>("plugin_uninstall", { pluginId, cwd });
+
+export const pluginSetEnabled = (pluginId: string, enabled: boolean, cwd?: string) =>
+  invoke<string>("plugin_set_enabled", { pluginId, enabled, cwd });
+
+export const pluginUpdate = (pluginId: string, cwd?: string) =>
+  invoke<string>("plugin_update", { pluginId, cwd });
+
+export const marketplaceAdd = (source: string) =>
+  invoke<string>("marketplace_add", { source });
+
+export const marketplaceRemove = (name: string) =>
+  invoke<string>("marketplace_remove", { name });
 
 // ------------------------------------------------------------------ terminal
 

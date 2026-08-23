@@ -76,6 +76,9 @@ pub struct AgentRunRequest {
     /// Suppress the brevity contract for this agent (e.g. a writing agent).
     #[serde(default)]
     pub verbose_output: bool,
+    /// Enable the Claude in Chrome integration for this agent's turns.
+    #[serde(default)]
+    pub chrome: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -246,6 +249,9 @@ fn build_command(req: &AgentRunRequest, session_id: &str) -> Command {
     }
     if req.bare {
         cmd.arg("--bare");
+    }
+    if req.chrome {
+        cmd.arg("--chrome");
     }
 
     cmd.stdin(Stdio::piped())

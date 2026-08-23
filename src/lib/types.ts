@@ -54,6 +54,8 @@ export interface Agent extends Base {
   context_budget: number;
   bare: boolean;
   verbose_output: boolean;
+  /** Enable the Claude in Chrome integration for this agent's turns. */
+  chrome: boolean;
   enabled: boolean;
 }
 
@@ -171,6 +173,7 @@ export interface AgentRunRequest {
   addDirs?: string[];
   bare?: boolean;
   verboseOutput?: boolean;
+  chrome?: boolean;
 }
 
 export interface ContextPack {
@@ -189,6 +192,34 @@ export interface AgentFile {
   tools: string[];
   instructions: string;
   path: string;
+}
+
+export interface InstalledPlugin {
+  id: string;
+  version: string;
+  scope: string;
+  enabled: boolean;
+  installPath?: string | null;
+}
+
+export interface AvailablePlugin {
+  pluginId: string;
+  name: string;
+  description: string;
+  marketplaceName: string;
+  installCount: number;
+}
+
+export interface Marketplace {
+  name: string;
+  source: string;
+  repo?: string | null;
+}
+
+export interface PluginCatalog {
+  installed: InstalledPlugin[];
+  available: AvailablePlugin[];
+  marketplaces: Marketplace[];
 }
 
 export interface HostInfo {

@@ -41,6 +41,11 @@ nothing raw is ever sent to a model twice.
 - **Agents with profiles.** Every agent has its own persona, model, effort
   level, permission mode, tool allowlist and token budget. The persona is
   injected as `--append-system-prompt`; the rest map onto Claude Code CLI flags.
+- **Plugins, from inside the app.** The puzzle icon in the title bar opens a
+  searchable browser over every plugin in your configured marketplaces —
+  install, enable, update, remove, and add marketplaces. It drives the CLI's
+  own plugin system, so anything installed is equally visible to a plain
+  `claude` session.
 - **Projects are configured, not just named.** The Settings gear in the title
   bar opens the project panel: objective, standing instructions every agent
   inherits, working folder, accent colour, default model, context budget — and
@@ -289,6 +294,7 @@ ais-teams/
 │   │   ├── Login.tsx             auth + PocketBase URL
 │   │   ├── Sidebar.tsx           projects, channels, agent roster
 │   │   ├── ProjectDialog.tsx     project panel (brief, folders, agent import)
+│   │   ├── PluginsDialog.tsx     plugin browser, install, marketplaces
 │   │   ├── ChannelDialog.tsx     channel settings (agents, description, project)
 │   │   ├── Chat.tsx              transcript, typing indicator, composer
 │   │   ├── AgentEditor.tsx       per-agent profile (maps to CLI flags)
@@ -304,6 +310,7 @@ ais-teams/
 │   │   ├── lib.rs                plugins, state, command registration
 │   │   ├── runner.rs             headless `claude -p` runs
 │   │   ├── agentfiles.rs         parses `.md` agent definitions
+│   │   ├── plugins.rs            wraps `claude plugin` / marketplaces
 │   │   ├── pty.rs                interactive PTY sessions (desktop only)
 │   │   └── context.rs            compressor + budgeting (+ unit tests)
 │   ├── capabilities/default.json permission set for the main window
@@ -338,6 +345,31 @@ collection checks `project.owner = @request.auth.id || project.members.id ?= @re
 
 Migrations run automatically when the container starts. To change the schema,
 add a new file to `pb_migrations/` and restart: `pnpm pb:down && pnpm pb:up`.
+
+### Plugins
+
+The panel is a typed shell over the CLI, not a second plugin system:
+
+| Panel action | Command |
+|---|---|
+| open / refresh | `claude plugin list --json --available` |
+| install | `claude plugin install <id> --scope <scope> --yes` |
+| enable / disable | `claude plugin enable\|disable <id>` |
+| update / uninstall | `claude plugin update\|uninstall <id>` |
+| marketplaces | `claude plugin marketplace list --json` / `add` / `remove` |
+
+Scope is `user`, `project` or `local`. Project scope runs in the project's
+working folder, so a project without one is flagged rather than silently
+installed elsewhere. A newly installed plugin loads on the agent's next session,
+not the current one.
+
+Note that the CLI drops a plugin from `available` once it is installed, so the
+browser merges the installed list back in — otherwise searching for something
+you just installed returns nothing.
+
+**Claude in Chrome** is a per-agent switch in the agent editor, mapping to
+`--chrome`. It is off by default and set per agent on purpose: driving the
+user's browser is a much larger blast radius than editing files.
 
 ### Agent files
 
@@ -379,6 +411,9 @@ Commands (call through `src/lib/bridge.ts`, never `invoke` directly):
 | `default_context_budget()` | seed value for new projects |
 | `host_info()` | hostname, platform, `canRunAgents` |
 | `scan_agent_files(dir)` | parse `.md` agent definitions in a folder |
+| `plugin_catalog()` | installed + available plugins + marketplaces |
+| `plugin_install/uninstall/set_enabled/update` | plugin lifecycle |
+| `marketplace_add/remove` | manage plugin marketplaces |
 | `pty_open/write/resize/close/list` | interactive terminal (desktop only) |
 
 Events:
