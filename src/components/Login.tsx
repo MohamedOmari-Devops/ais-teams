@@ -2,22 +2,35 @@ import { useState } from "react";
 import {
   Box,
   Button,
+  Link,
   Paper,
   Stack,
   TextField,
   Typography,
 } from "@mui/material";
-import { login, pbUrl, setPbUrl, signup } from "../lib/pb";
-import { fog } from "../theme";
+import DnsRoundedIcon from "@mui/icons-material/DnsRounded";
+import {
+  defaultPbUrl,
+  login,
+  pbUrl,
+  resetPbUrl,
+  setPbUrl,
+  signup,
+  usingCustomPbUrl,
+} from "../lib/pb";
+import { fog, ink } from "../theme";
 
 /**
- * Auth plus server address in one screen.
+ * Auth, with the server address tucked away.
  *
- * The address matters: the desktop app talks to PocketBase on localhost, a
- * phone has to use the LAN IP of the machine running Docker.
+ * Almost everyone uses the address the build ships with (`VITE_PB_URL` in
+ * `.env`), so the URL field stays hidden behind a question. It opens on its
+ * own when this device is already pointed somewhere else, so a custom address
+ * is never invisible.
  */
 export default function Login({ onDone }: { onDone: () => void }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const [custom, setCustom] = useState(usingCustomPbUrl());
   const [url, setUrl] = useState(pbUrl());
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,7 +43,11 @@ export default function Login({ onDone }: { onDone: () => void }) {
     setBusy(true);
     setError("");
     try {
-      setPbUrl(url);
+      // Collapsed means "whatever .env says", even if the field holds an old
+      // value from before it was closed.
+      if (custom) setPbUrl(url);
+      else resetPbUrl();
+
       if (mode === "login") await login(email, password);
       else await signup(email, password, name || email.split("@")[0]);
       onDone();
@@ -39,6 +56,12 @@ export default function Login({ onDone }: { onDone: () => void }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  function useDefault() {
+    resetPbUrl();
+    setUrl(defaultPbUrl());
+    setCustom(false);
   }
 
   return (
@@ -54,7 +77,13 @@ export default function Login({ onDone }: { onDone: () => void }) {
         component="form"
         onSubmit={submit}
         elevation={0}
-        sx={{ width: 400, p: 4, borderRadius: "16px", border: "1px solid", borderColor: "divider" }}
+        sx={{
+          width: 400,
+          p: 4,
+          borderRadius: "16px",
+          border: "1px solid",
+          borderColor: "divider",
+        }}
       >
         <Typography sx={{ fontSize: 18, fontWeight: 600 }}>AIS Teams</Typography>
         <Typography sx={{ fontSize: 12, color: fog[300], mb: 3 }}>
@@ -62,16 +91,6 @@ export default function Login({ onDone }: { onDone: () => void }) {
         </Typography>
 
         <Stack spacing={2}>
-          <TextField
-            label="PocketBase URL"
-            size="small"
-            fullWidth
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="http://127.0.0.1:8090"
-            slotProps={{ input: { sx: { fontFamily: "var(--font-mono)", fontSize: 12 } } }}
-          />
-
           {mode === "signup" && (
             <TextField
               label="Name"
@@ -119,6 +138,55 @@ export default function Login({ onDone }: { onDone: () => void }) {
             {mode === "login" ? "Create an account" : "I already have an account"}
           </Button>
         </Stack>
+
+        <Box sx={{ mt: 2, pt: 2, borderTop: `1px solid ${ink[600]}` }}>
+          {!custom ? (
+            <Stack
+              direction="row"
+              spacing={0.75}
+              sx={{ alignItems: "center", justifyContent: "center" }}
+            >
+              <DnsRoundedIcon sx={{ fontSize: 14, color: fog[300] }} />
+              <Typography sx={{ fontSize: 11, color: fog[300] }}>
+                Use your own PocketBase?
+              </Typography>
+              <Link
+                component="button"
+                type="button"
+                underline="hover"
+                onClick={() => setCustom(true)}
+                sx={{ fontSize: 11 }}
+              >
+                Change server
+              </Link>
+            </Stack>
+          ) : (
+            <Stack spacing={1}>
+              <TextField
+                label="PocketBase URL"
+                size="small"
+                fullWidth
+                autoFocus
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder={defaultPbUrl()}
+                helperText={`Default from .env: ${defaultPbUrl()}`}
+                slotProps={{
+                  input: { sx: { fontFamily: "var(--font-mono)", fontSize: 12 } },
+                }}
+              />
+              <Link
+                component="button"
+                type="button"
+                underline="hover"
+                onClick={useDefault}
+                sx={{ fontSize: 11, alignSelf: "flex-start" }}
+              >
+                Use the default server
+              </Link>
+            </Stack>
+          )}
+        </Box>
       </Paper>
     </Box>
   );

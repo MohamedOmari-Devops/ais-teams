@@ -192,9 +192,20 @@ PB_URL=http://172.27.79.200:8090 node scripts/seed.mjs --root "C:\path\to\your\r
 pnpm app:dev
 ```
 
-On the login screen, put the same PocketBase URL in the **PocketBase URL**
-field, then sign in with the seeded account (`dev@ais.local` /
-`devdevdev123`) or create your own.
+Put that URL in `.env.local` (git-ignored) so the app ships with it:
+
+```ini
+VITE_PB_URL=http://172.27.79.200:8090
+```
+
+The login screen uses that address silently — there is no URL field to fill in.
+Someone pointing this build at their own server clicks **Use your own
+PocketBase? · Change server** to reveal it; the field also opens by itself when
+the device already has an override, so a custom address is never invisible.
+"Use the default server" clears the override and goes back to `.env`.
+
+Then sign in with the seeded account (`dev@ais.local` / `devdevdev123`) or
+create your own.
 
 The status line at the bottom of the window reads `runner ready · <version>`
 when the Claude Code CLI was found. If it reads `runner offline`, the app can
@@ -291,7 +302,7 @@ ais-teams/
 │   ├── theme.ts                  MUI dark theme (shared palette with Tailwind)
 │   ├── components/
 │   │   ├── TitleBar.tsx          custom chrome for the frameless window
-│   │   ├── Login.tsx             auth + PocketBase URL
+│   │   ├── Login.tsx             auth; server address hidden behind a link
 │   │   ├── Sidebar.tsx           projects, channels, agent roster
 │   │   ├── ProjectDialog.tsx     project panel (brief, folders, agent import)
 │   │   ├── PluginsDialog.tsx     plugin browser, install, marketplaces
@@ -606,7 +617,10 @@ number above 1. Migration `1756000100_multi_relations.js` fixes
 single id and need re-saving.
 
 **`fetch failed ECONNREFUSED` from Node or the app.** WSL is not forwarding
-localhost. See [WSL networking](#wsl-networking-important).
+localhost. See [WSL networking](#wsl-networking-important). Note that the login
+screen hides the address: open **Change server** to see which one this device is
+actually using, or check `VITE_PB_URL` in `.env.local`. An override set on a
+device wins over `.env` until "Use the default server" clears it.
 
 **Migration did not apply.** Migrations run on container start. Confirm the file
 is mounted (`wsl -e docker exec ais-teams-pb ls /pb_migrations`) and restart the
