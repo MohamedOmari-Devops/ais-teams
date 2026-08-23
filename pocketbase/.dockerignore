@@ -1,0 +1,5 @@
+# Never let a local database or compose file into the build context.
+pb_data
+pb_public
+docker-compose.yml
+*.md

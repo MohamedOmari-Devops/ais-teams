@@ -2,7 +2,12 @@ name: ais-teams
 
 services:
   pocketbase:
-    image: ghcr.io/muchobien/pocketbase:latest
+    build:
+      context: .
+      args:
+        # Keep in step with the ARG default in the Dockerfile.
+        PB_VERSION: "0.40.0"
+    image: ais-teams/pocketbase:0.40.0
     container_name: ais-teams-pb
     restart: unless-stopped
     ports:
@@ -12,6 +17,8 @@ services:
       # pb_data is a named volume on purpose: SQLite over a /mnt/c bind mount
       # is slow and its file locks are unreliable under WSL.
       - pb_data:/pb_data
+      # Migrations and hooks are baked into the image, but mounting them over
+      # the top means an edit applies on restart instead of on rebuild.
       - ./pb_migrations:/pb_migrations
       - ./pb_hooks:/pb_hooks
     environment:

@@ -327,7 +327,9 @@ ais-teams/
 │   ├── capabilities/default.json permission set for the main window
 │   └── tauri.conf.json
 ├── pocketbase/
-│   ├── docker-compose.yml        PocketBase in WSL Docker
+│   ├── Dockerfile                pinned PocketBase image, non-root
+│   ├── docker-entrypoint.sh      fixes pb_data ownership, drops privileges
+│   ├── docker-compose.yml        builds the image, runs it in WSL Docker
 │   └── pb_migrations/
 │       └── 1756000000_init_schema.js
 └── scripts/seed.mjs              demo project + agents + channels
@@ -356,6 +358,36 @@ collection checks `project.owner = @request.auth.id || project.members.id ?= @re
 
 Migrations run automatically when the container starts. To change the schema,
 add a new file to `pb_migrations/` and restart: `pnpm pb:down && pnpm pb:up`.
+
+### The PocketBase image
+
+`pocketbase/Dockerfile` builds the backend rather than pulling a third-party
+image, so the version is ours to control:
+
+- **Two stages.** The first fetches and unzips the release; the final image
+  holds only the binary, so no `wget`-ed archive or `unzip` ships to production.
+  ~65 MB on Alpine.
+- **Version pinned** (`ARG PB_VERSION`). PocketBase makes breaking schema-API
+  changes between minor releases and the migrations target the v0.23+ `fields`
+  API, so this is bumped deliberately, not by rebuilding.
+- **Multi-arch.** `TARGETARCH` picks the right release asset, so the same
+  Dockerfile builds on an arm64 host.
+- **Migrations baked in.** A fresh container applies the whole schema on first
+  boot with no bind mount; compose still mounts `pb_migrations` and `pb_hooks`
+  over the top in development so an edit applies on restart, not on rebuild.
+- **Runs unprivileged.** PID 1 is the `pocketbase` user, not root.
+
+That last point has a wrinkle worth knowing. A `pb_data` volume created by an
+image that ran as root stays root-owned, and an unprivileged PocketBase then
+fails every write with `attempt to write a readonly database`. So
+`docker-entrypoint.sh` starts as root, chowns `/pb_data` **only when the owner
+is actually wrong**, and re-execs through `su-exec`. Pass `--user` to skip that
+and keep the container rootless end to end.
+
+```bash
+pnpm pb:up                  # builds on first run, then starts
+docker compose -f pocketbase/docker-compose.yml build --no-cache   # force a rebuild
+```
 
 ### Plugins
 
@@ -467,7 +499,8 @@ window.
 
 ### Stage 1 — backend up
 
-Write `pocketbase/docker-compose.yml` using a **named volume** for `pb_data`
+Write `pocketbase/Dockerfile` and `pocketbase/docker-compose.yml` using a
+**named volume** for `pb_data`
 (SQLite over a `/mnt/c` bind mount is slow and its file locks are unreliable)
 and a bind mount for `pb_migrations`. Write the schema migration. Start it with
 `pnpm pb:up` and confirm the collections exist in the dashboard.
