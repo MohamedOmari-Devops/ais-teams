@@ -1,0 +1,53 @@
+{
+  "name": "ais-teams",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "app:dev": "tauri dev",
+    "app:build": "tauri build",
+    "android:init": "tauri android init",
+    "android:dev": "tauri android dev",
+    "pb:up": "wsl -e docker compose -f pocketbase/docker-compose.yml up -d",
+    "pb:down": "wsl -e docker compose -f pocketbase/docker-compose.yml down",
+    "pb:logs": "wsl -e docker compose -f pocketbase/docker-compose.yml logs -f",
+    "pb:reset": "wsl -e docker compose -f pocketbase/docker-compose.yml down -v",
+    "pb:admin": "wsl -e docker exec -it ais-teams-pb /usr/local/bin/pocketbase superuser upsert admin@ais.local changeme123 --dir /pb_data",
+    "seed": "node scripts/seed.mjs",
+    "rust:check": "cargo check --manifest-path src-tauri/Cargo.toml",
+    "rust:test": "cargo test --manifest-path src-tauri/Cargo.toml --lib",
+    "pb:ip": "wsl -e hostname -I"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2.7.2",
+    "@tauri-apps/plugin-fs": "^2.5.1",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-os": "^2.3.2",
+    "@tauri-apps/plugin-shell": "^2.3.5",
+    "@tauri-apps/plugin-store": "^2.4.4",
+    "pocketbase": "^0.28.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@tauri-apps/cli": "^2",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~5.8.3",
+    "vite": "^7.0.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

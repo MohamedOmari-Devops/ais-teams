@@ -1,0 +1,27 @@
+name: ais-teams
+
+services:
+  pocketbase:
+    image: ghcr.io/muchobien/pocketbase:latest
+    container_name: ais-teams-pb
+    restart: unless-stopped
+    ports:
+      # 0.0.0.0 so a phone on the same Wi-Fi can reach it, not only the host.
+      - "0.0.0.0:8090:8090"
+    volumes:
+      # pb_data is a named volume on purpose: SQLite over a /mnt/c bind mount
+      # is slow and its file locks are unreliable under WSL.
+      - pb_data:/pb_data
+      - ./pb_migrations:/pb_migrations
+      - ./pb_hooks:/pb_hooks
+    environment:
+      - TZ=UTC
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8090/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  pb_data:

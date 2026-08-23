@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink-900: #0b0d12;
+  --color-ink-800: #12151d;
+  --color-ink-700: #1a1e28;
+  --color-ink-600: #232838;
+  --color-ink-500: #333a4d;
+  --color-fog-300: #9aa4bd;
+  --color-fog-100: #e6eaf5;
+  --color-accent: #7c5cff;
+  --color-accent-soft: #2a2350;
+  --color-ok: #3fbf7f;
+  --color-warn: #e0a44a;
+  --color-bad: #e2585f;
+  --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-ink-900);
+  color: var(--color-fog-100);
+  font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-ink-500);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Streaming caret on a reply that is still arriving. */
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+.caret::after {
+  content: "▍";
+  animation: blink 1s steps(1) infinite;
+  color: var(--color-accent);
+}
