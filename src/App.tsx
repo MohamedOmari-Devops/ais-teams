@@ -5,6 +5,7 @@ import Chat from "./components/Chat";
 import AgentEditor from "./components/AgentEditor";
 import TerminalPane from "./components/Terminal";
 import TitleBar from "./components/TitleBar";
+import ProjectDialog from "./components/ProjectDialog";
 import { pb, isAuthed } from "./lib/pb";
 import { claudeDoctor, hostInfo, isTauri } from "./lib/bridge";
 import { initRunListeners, startQueueWorker } from "./lib/orchestrator";
@@ -16,6 +17,10 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [editing, setEditing] = useState<{ agent: Agent | null } | null>(null);
   const [showTerminal, setShowTerminal] = useState(false);
+  // `undefined` = closed. `null` = creating. A project = editing that project.
+  const [projectPanel, setProjectPanel] = useState<Project | null | undefined>(
+    undefined,
+  );
 
   const {
     project,
@@ -145,7 +150,10 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <TitleBar subtitle={subtitle} />
+      <TitleBar
+        subtitle={subtitle}
+        onOpenSettings={project ? () => setProjectPanel(project) : undefined}
+      />
       <div className="relative flex flex-1 overflow-hidden">
       <Sidebar
         projects={projects}
@@ -177,6 +185,18 @@ export default function App() {
           agent={editing.agent}
           onClose={() => {
             setEditing(null);
+            void loadScope();
+          }}
+        />
+      )}
+
+      {projectPanel !== undefined && (
+        <ProjectDialog
+          project={projectPanel}
+          onClose={(saved) => {
+            setProjectPanel(undefined);
+            if (saved) setProject(saved);
+            void loadProjects();
             void loadScope();
           }}
         />

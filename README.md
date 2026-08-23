@@ -41,6 +41,10 @@ nothing raw is ever sent to a model twice.
 - **Agents with profiles.** Every agent has its own persona, model, effort
   level, permission mode, tool allowlist and token budget. The persona is
   injected as `--append-system-prompt`; the rest map onto Claude Code CLI flags.
+- **Projects are configured, not just named.** The Settings gear in the title
+  bar opens the project panel: objective, standing instructions every agent
+  inherits, working folder, accent colour, default model, context budget — and
+  a folder of agent `.md` files to import a whole roster from disk.
 - **Real Claude Code, not an API wrapper.** Chat turns spawn
   `claude -p --output-format stream-json` in the project directory and stream
   the result back. A terminal pane runs the full interactive TUI in a PTY when
@@ -114,6 +118,27 @@ Four mechanisms, in the order they apply:
 4. **Session resume.** `agent_sessions` maps `(agent, channel)` to a Claude
    session id. Turn 2 passes `--resume`, so the model already has the
    conversation and only the delta is new.
+
+### The constraint that shapes all of this
+
+**Claude Code freezes a session's system prompt at creation, and ignores a
+changed `--append-system-prompt` on `--resume`.** Verified directly: start a
+session without an instruction, resume it with one, and the instruction has no
+effect.
+
+So the prompt is split in two:
+
+| Half | Carries | Sent as |
+|---|---|---|
+| stable | agent name, persona, brevity contract | `--append-system-prompt` |
+| volatile | project brief, channel brief, context pack | the user message, on stdin |
+
+Putting volatile context in the system prompt looks correct and works for
+exactly one turn — after that every context pack, project instruction and
+channel description is silently discarded. The persona is still frozen per
+session, so `agent_sessions.persona_hash` records which persona a session was
+built with; when it stops matching, the next turn starts a fresh session
+instead of resuming.
 
 On top of that, agents answer under a strict brevity contract
 (`runner.rs::BREVITY_CONTRACT`), which caps output tokens and forces the
@@ -263,6 +288,7 @@ ais-teams/
 │   │   ├── TitleBar.tsx          custom chrome for the frameless window
 │   │   ├── Login.tsx             auth + PocketBase URL
 │   │   ├── Sidebar.tsx           projects, channels, agent roster
+│   │   ├── ProjectDialog.tsx     project panel (brief, folders, agent import)
 │   │   ├── ChannelDialog.tsx     channel settings (agents, description, project)
 │   │   ├── Chat.tsx              transcript, typing indicator, composer
 │   │   ├── AgentEditor.tsx       per-agent profile (maps to CLI flags)
@@ -277,6 +303,7 @@ ais-teams/
 │   ├── src/
 │   │   ├── lib.rs                plugins, state, command registration
 │   │   ├── runner.rs             headless `claude -p` runs
+│   │   ├── agentfiles.rs         parses `.md` agent definitions
 │   │   ├── pty.rs                interactive PTY sessions (desktop only)
 │   │   └── context.rs            compressor + budgeting (+ unit tests)
 │   ├── capabilities/default.json permission set for the main window
@@ -296,13 +323,13 @@ Nine collections, all defined in `pocketbase/pb_migrations/1756000000_init_schem
 
 | Collection | Purpose | Key fields |
 |---|---|---|
-| `projects` | one codebase / product | `root_path`, `owner`, `members`, `context_budget` |
+| `projects` | one codebase / product | `root_path`, `agents_dir`, `instructions`, `color`, `owner`, `members`, `context_budget` |
 | `agents` | a Claude Code persona | `instructions`, `model`, `effort`, `permission_mode`, `allowed_tools`, `lanes`, `context_budget`, `bare`, `verbose_output` |
 | `channels` | a conversation | `lane`, `kind`, `agents[]` |
 | `messages` | transcript | `author_type`, `body`, `compressed`, `status`, `run_id`, `context_tokens` |
 | `context_chunks` | the memory agents read | `lane`, `kind`, `text`, `weight`, `pinned` |
 | `goals` | what the project is chasing | `title`, `status`, `achieved_at` |
-| `agent_sessions` | resumable Claude sessions | `(agent, channel)` unique → `claude_session_id` |
+| `agent_sessions` | resumable Claude sessions | `(agent, channel)` unique → `claude_session_id`, `persona_hash` |
 | `devices` | paired phones / hosts | `is_runner`, `last_seen` |
 | `runs` | job queue + audit log | `status`, `claimed_by`, `exit_code` |
 
@@ -311,6 +338,28 @@ collection checks `project.owner = @request.auth.id || project.members.id ?= @re
 
 Migrations run automatically when the container starts. To change the schema,
 add a new file to `pb_migrations/` and restart: `pnpm pb:down && pnpm pb:up`.
+
+### Agent files
+
+Point a project at a folder of `.md` files and import the roster in one go.
+The format matches Claude Code's own subagent files:
+
+```markdown
+---
+name: backend
+description: owns the Rust core and PocketBase schema
+model: sonnet
+color: "#3fbf7f"
+tools: Read, Grep, Edit, Bash(cargo *)
+---
+You own src-tauri and the PocketBase migrations. Small diffs.
+Run cargo check before claiming done. Never touch src/components.
+```
+
+`scan_agent_files` reads the folder (non-recursively, skipping `README.md`) and
+the panel previews what it found before writing anything. Import matches on
+name, so editing a file and re-importing updates the existing agent rather than
+creating a duplicate.
 
 ---
 
@@ -329,6 +378,7 @@ Commands (call through `src/lib/bridge.ts`, never `invoke` directly):
 | `build_context_pack(chunks, budgetTokens)` | rank + compress + truncate |
 | `default_context_budget()` | seed value for new projects |
 | `host_info()` | hostname, platform, `canRunAgents` |
+| `scan_agent_files(dir)` | parse `.md` agent definitions in a folder |
 | `pty_open/write/resize/close/list` | interactive terminal (desktop only) |
 
 Events:
@@ -501,6 +551,12 @@ if the binary is behind a shim (nvm, volta).
 
 **Turns stay `queued` forever.** No device is running the queue worker. The
 desktop app must be open, authenticated, and reporting `runner ready`.
+
+**Edits to a persona, project instruction or channel description have no
+effect.** The agent is resuming a session whose system prompt was frozen before
+the edit. Volatile context belongs on the user message; persona changes need a
+new session, which `persona_hash` triggers automatically. If you hit this in new
+code, check what you put in `--append-system-prompt`.
 
 **Replies come back empty with `runs.status = cancelled`, `exit_code = 1`.**
 Two processes were started for one `runId`, and registering the second dropped

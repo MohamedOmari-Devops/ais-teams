@@ -17,9 +17,10 @@ import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded";
 import TagRoundedIcon from "@mui/icons-material/TagRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
-import { pb, currentUserId, logout } from "../lib/pb";
+import { pb, logout } from "../lib/pb";
 import { useApp } from "../store";
 import ChannelDialog from "./ChannelDialog";
+import ProjectDialog from "./ProjectDialog";
 import { ink, fog, accent } from "../theme";
 import type { Agent, Channel, Project } from "../lib/types";
 
@@ -37,23 +38,13 @@ interface Props {
  */
 export default function Sidebar({ projects, onReload, onEditAgent }: Props) {
   const { project, channel, channels, agents, setProject, setChannel } = useApp();
-  const [creating, setCreating] = useState<"channel" | "project" | null>(null);
+  const [creatingChannel, setCreatingChannel] = useState(false);
   const [draft, setDraft] = useState("");
   const [settingsFor, setSettingsFor] = useState<Channel | null>(null);
-
-  async function createProject(name: string) {
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    const created = await pb.collection("projects").create<Project>({
-      name,
-      slug: `${slug}-${Math.random().toString(36).slice(2, 6)}`,
-      owner: currentUserId(),
-      members: [currentUserId()],
-      context_budget: 3000,
-      default_model: "sonnet",
-    });
-    setProject(created);
-    onReload();
-  }
+  // `undefined` = closed, `null` = creating, a project = editing it.
+  const [projectPanel, setProjectPanel] = useState<Project | null | undefined>(
+    undefined,
+  );
 
   async function createChannel(name: string) {
     if (!project) return;
@@ -88,7 +79,13 @@ export default function Sidebar({ projects, onReload, onEditAgent }: Props) {
           IconComponent={ExpandMoreRoundedIcon}
           renderValue={(value) => (
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-              <FolderRoundedIcon sx={{ fontSize: 16, color: accent }} />
+              <FolderRoundedIcon
+                sx={{
+                  fontSize: 16,
+                  color:
+                    projects.find((p) => p.id === value)?.color || accent,
+                }}
+              />
               <Box
                 sx={{
                   fontSize: 13,
@@ -119,7 +116,9 @@ export default function Sidebar({ projects, onReload, onEditAgent }: Props) {
         >
           {projects.map((p) => (
             <MenuItem key={p.id} value={p.id} sx={{ fontSize: 13, borderRadius: "8px", mx: 0.5 }}>
-              <FolderRoundedIcon sx={{ fontSize: 16, mr: 1, color: fog[300] }} />
+              <FolderRoundedIcon
+                sx={{ fontSize: 16, mr: 1, color: p.color || fog[300] }}
+              />
               {p.name}
             </MenuItem>
           ))}
@@ -134,10 +133,7 @@ export default function Sidebar({ projects, onReload, onEditAgent }: Props) {
           fullWidth
           size="small"
           startIcon={<AddRoundedIcon sx={{ fontSize: 16 }} />}
-          onClick={() => {
-            setCreating("project");
-            setDraft("");
-          }}
+          onClick={() => setProjectPanel(null)}
           sx={{
             mt: 1,
             color: fog[300],
@@ -149,26 +145,41 @@ export default function Sidebar({ projects, onReload, onEditAgent }: Props) {
           New project
         </Button>
 
+        {/* Both states open project settings — the warning has to be fixable. */}
         {project?.root_path ? (
-          <Tooltip title={project.root_path}>
+          <Tooltip title={`${project.root_path} — click for project settings`}>
             <Typography
+              onClick={() => setProjectPanel(project)}
               sx={{
                 mt: 1,
                 fontFamily: "var(--font-mono)",
                 fontSize: 10,
                 color: fog[300],
+                cursor: "pointer",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
+                "&:hover": { color: fog[100] },
               }}
             >
               {project.root_path}
             </Typography>
           </Tooltip>
         ) : (
-          <Typography sx={{ mt: 1, fontSize: 10, color: "#e0a44a" }}>
-            no root_path set — agents run in "."
-          </Typography>
+          project && (
+            <Typography
+              onClick={() => setProjectPanel(project)}
+              sx={{
+                mt: 1,
+                fontSize: 10,
+                color: "#e0a44a",
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+            >
+              no working folder set — click to configure
+            </Typography>
+          )
         )}
       </Box>
 
@@ -176,7 +187,7 @@ export default function Sidebar({ projects, onReload, onEditAgent }: Props) {
         title="Channels"
         hint="double-click to configure"
         onAdd={() => {
-          setCreating("channel");
+          setCreatingChannel(true);
           setDraft("");
         }}
       >
@@ -235,14 +246,12 @@ export default function Sidebar({ projects, onReload, onEditAgent }: Props) {
       </Box>
 
       <Dialog
-        open={creating !== null}
-        onClose={() => setCreating(null)}
+        open={creatingChannel}
+        onClose={() => setCreatingChannel(false)}
         fullWidth
         maxWidth="xs"
       >
-        <DialogTitle sx={{ fontSize: 15, fontWeight: 600 }}>
-          New {creating === "project" ? "project" : "channel"}
-        </DialogTitle>
+        <DialogTitle sx={{ fontSize: 15, fontWeight: 600 }}>New channel</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
@@ -255,14 +264,13 @@ export default function Sidebar({ projects, onReload, onEditAgent }: Props) {
             onKeyDown={async (e) => {
               if (e.key !== "Enter" || !draft.trim()) return;
               const value = draft.trim();
-              setCreating(null);
-              if (creating === "project") await createProject(value);
-              else await createChannel(value);
+              setCreatingChannel(false);
+              await createChannel(value);
             }}
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button size="small" color="inherit" onClick={() => setCreating(null)}>
+          <Button size="small" color="inherit" onClick={() => setCreatingChannel(false)}>
             Cancel
           </Button>
           <Button
@@ -271,16 +279,29 @@ export default function Sidebar({ projects, onReload, onEditAgent }: Props) {
             disabled={!draft.trim()}
             onClick={async () => {
               const value = draft.trim();
-              const mode = creating;
-              setCreating(null);
-              if (mode === "project") await createProject(value);
-              else await createChannel(value);
+              setCreatingChannel(false);
+              await createChannel(value);
             }}
           >
             Create
           </Button>
         </DialogActions>
       </Dialog>
+
+      {projectPanel !== undefined && (
+        <ProjectDialog
+          project={projectPanel}
+          onClose={(saved) => {
+            const wasCreating = projectPanel === null;
+            setProjectPanel(undefined);
+            if (saved) {
+              setProject(saved);
+              if (wasCreating) setChannel(null);
+            }
+            onReload();
+          }}
+        />
+      )}
 
       {settingsFor && (
         <ChannelDialog

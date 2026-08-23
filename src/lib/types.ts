@@ -20,6 +20,12 @@ export interface Project extends Base {
   default_model: string;
   context_budget: number;
   archived: boolean;
+  /** Standing brief prepended to every agent turn in this project. */
+  instructions: string;
+  /** Folder of agent `.md` definitions the settings panel can import. */
+  agents_dir: string;
+  /** Accent colour for the project chip. */
+  color: string;
 }
 
 export type PermissionMode =
@@ -115,6 +121,8 @@ export interface AgentSession extends Base {
   agent: string;
   channel: string;
   claude_session_id: string;
+  /** Persona fingerprint the session was created with. */
+  persona_hash: string;
   turns: number;
   last_used: string;
 }
@@ -170,6 +178,17 @@ export interface ContextPack {
   estimated_tokens: number;
   included: number;
   dropped: number;
+}
+
+/** One agent definition parsed out of a markdown file on disk. */
+export interface AgentFile {
+  name: string;
+  description: string;
+  model: string;
+  color: string;
+  tools: string[];
+  instructions: string;
+  path: string;
 }
 
 export interface HostInfo {

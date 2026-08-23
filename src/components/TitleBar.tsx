@@ -4,6 +4,7 @@ import RemoveRoundedIcon from "@mui/icons-material/RemoveRounded";
 import CropSquareRoundedIcon from "@mui/icons-material/CropSquareRounded";
 import FilterNoneRoundedIcon from "@mui/icons-material/FilterNoneRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import { isTauri } from "../lib/bridge";
 import { ink, fog } from "../theme";
 
@@ -14,7 +15,14 @@ import { ink, fog } from "../theme";
  * move, double-click to maximise. Buttons must sit outside it or they would be
  * swallowed by the drag handler.
  */
-export default function TitleBar({ subtitle }: { subtitle?: string }) {
+export default function TitleBar({
+  subtitle,
+  onOpenSettings,
+}: {
+  subtitle?: string;
+  /** Opens project settings. Omitted before sign-in, where there is none. */
+  onOpenSettings?: () => void;
+}) {
   const [maximized, setMaximized] = useState(false);
 
   useEffect(() => {
@@ -97,6 +105,14 @@ export default function TitleBar({ subtitle }: { subtitle?: string }) {
           </Box>
         )}
       </Box>
+
+      {onOpenSettings && (
+        <Tooltip title="Project settings">
+          <IconButton size="small" onClick={onOpenSettings} sx={{ mr: 0.5 }}>
+            <SettingsRoundedIcon sx={{ fontSize: 15 }} />
+          </IconButton>
+        </Tooltip>
+      )}
 
       <Tooltip title="Minimise">
         <IconButton size="small" onClick={() => void act("minimize")}>

@@ -31,7 +31,7 @@ OUTPUT CONTRACT (strict):
 - End with a line 'FACTS:' followed by 1-3 durable facts worth storing as \
 project context. Omit the section if the turn produced none.";
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRunRequest {
     /// Client-generated id used to correlate events and to cancel the run.
@@ -167,6 +167,12 @@ fn claude_bin() -> String {
     std::env::var("AIS_CLAUDE_BIN").unwrap_or_else(|_| "claude".to_string())
 }
 
+/// The stable half of the prompt: who this agent is.
+///
+/// Only things that do not change turn to turn belong here. Claude Code bakes
+/// the system prompt into a session when it is created and **ignores a changed
+/// `--append-system-prompt` on `--resume`**, so anything volatile placed here
+/// would silently stop updating after the first turn.
 fn compose_system_prompt(req: &AgentRunRequest) -> String {
     let mut parts: Vec<String> = Vec::new();
 
@@ -177,13 +183,21 @@ fn compose_system_prompt(req: &AgentRunRequest) -> String {
     if let Some(instructions) = req.instructions.as_ref().filter(|s| !s.trim().is_empty()) {
         parts.push(instructions.trim().to_string());
     }
-    if let Some(pack) = req.context_pack.as_ref().filter(|s| !s.trim().is_empty()) {
-        parts.push(pack.trim().to_string());
-    }
     if !req.verbose_output {
         parts.push(BREVITY_CONTRACT.to_string());
     }
     parts.join("\n\n")
+}
+
+/// The volatile half: project brief, channel brief and compressed memory.
+///
+/// This rides on the user message precisely because it changes every turn and
+/// must survive `--resume`.
+fn compose_user_prompt(req: &AgentRunRequest) -> String {
+    match req.context_pack.as_ref().filter(|s| !s.trim().is_empty()) {
+        Some(pack) => format!("{}\n\n---\n\n{}", pack.trim(), req.prompt),
+        None => req.prompt.clone(),
+    }
 }
 
 fn build_command(req: &AgentRunRequest, session_id: &str) -> Command {
@@ -301,7 +315,9 @@ pub async fn run_agent(
     let stdout = child.stdout.take().ok_or("no stdout on claude process")?;
     let stderr = child.stderr.take().ok_or("no stderr on claude process")?;
 
-    let prompt = request.prompt.clone();
+    // Context travels on stdin with the message, not in argv: it changes every
+    // turn, and it can be far larger than the Windows command-line limit.
+    let prompt = compose_user_prompt(&request);
     tokio::spawn(async move {
         let _ = stdin.write_all(prompt.as_bytes()).await;
         let _ = stdin.shutdown().await;
@@ -491,4 +507,55 @@ pub async fn claude_doctor() -> Result<String, String> {
         .await
         .map_err(|e| format!("{} not runnable: {e}", claude_bin()))?;
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn request() -> AgentRunRequest {
+        AgentRunRequest {
+            agent_name: "backend".into(),
+            instructions: Some("You own src-tauri.".into()),
+            context_pack: Some("## PROJECT Demo
+Ship it.".into()),
+            prompt: "What is 2+2?".into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn context_rides_on_the_user_prompt_not_the_system_prompt() {
+        let req = request();
+        let system = compose_system_prompt(&req);
+        let user = compose_user_prompt(&req);
+
+        // Volatile context must survive --resume, which only replays the
+        // session's original system prompt.
+        assert!(!system.contains("Ship it."));
+        assert!(user.contains("Ship it."));
+        assert!(user.contains("What is 2+2?"));
+
+        // The stable half still carries identity and persona.
+        assert!(system.contains("backend"));
+        assert!(system.contains("You own src-tauri."));
+    }
+
+    #[test]
+    fn empty_context_leaves_the_prompt_untouched() {
+        let req = AgentRunRequest {
+            prompt: "hello".into(),
+            context_pack: Some("   ".into()),
+            ..Default::default()
+        };
+        assert_eq!(compose_user_prompt(&req), "hello");
+    }
+
+    #[test]
+    fn verbose_agents_skip_the_brevity_contract() {
+        let mut req = request();
+        req.verbose_output = true;
+        assert!(!compose_system_prompt(&req).contains("OUTPUT CONTRACT"));
+        assert!(compose_system_prompt(&request()).contains("OUTPUT CONTRACT"));
+    }
 }

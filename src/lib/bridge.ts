@@ -6,7 +6,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { AgentRunRequest, ContextPack, HostInfo } from "./types";
+import type { AgentFile, AgentRunRequest, ContextPack, HostInfo } from "./types";
 
 export const isTauri = (): boolean =>
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -139,6 +139,25 @@ export async function onRunChunk(cb: (e: RunChunk) => void): Promise<UnlistenFn>
 
 export async function onRunEnd(cb: (e: RunEnded) => void): Promise<UnlistenFn> {
   return listen<RunEnded>("agent://end", (e) => cb(e.payload));
+}
+
+/**
+ * Read `.md` agent definitions from a folder.
+ *
+ * Scanning runs in Rust so the folder can live anywhere without widening the
+ * webview's filesystem scope.
+ */
+export async function scanAgentFiles(dir: string): Promise<AgentFile[]> {
+  if (!isTauri()) return [];
+  return invoke<AgentFile[]>("scan_agent_files", { dir });
+}
+
+/** Native folder picker. Returns "" when the dialog is dismissed. */
+export async function pickFolder(title: string): Promise<string> {
+  if (!isTauri()) return "";
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const picked = await open({ directory: true, multiple: false, title });
+  return typeof picked === "string" ? picked : "";
 }
 
 // ------------------------------------------------------------------ terminal

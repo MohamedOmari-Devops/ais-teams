@@ -9,6 +9,7 @@
 //! truth and the frontend writes to it directly, so the desktop app and a
 //! phone see identical data.
 
+mod agentfiles;
 mod context;
 mod runner;
 
@@ -87,6 +88,7 @@ pub fn run() {
             build_context_pack,
             default_context_budget,
             host_info,
+            agentfiles::scan_agent_files,
             runner::run_agent,
             runner::cancel_agent_run,
             runner::active_runs,
@@ -106,6 +108,7 @@ pub fn run() {
         build_context_pack,
         default_context_budget,
         host_info,
+        agentfiles::scan_agent_files,
     ]);
 
     builder
