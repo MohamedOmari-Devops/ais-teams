@@ -109,36 +109,84 @@ export default function App() {
       setMessages([]);
       return;
     }
+    const channelId = channel.id;
     let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+    let signature = "";
 
+    const load = async () => {
+      try {
+        const rows = await pb.collection("messages").getFullList<Message>({
+          filter: `channel = "${channelId}"`,
+          sort: "created",
+        });
+        if (cancelled) return;
+        // Re-rendering the transcript on every poll would fight the scroll
+        // position, so only a real change is pushed into the store.
+        const next = rows.map((row) => `${row.id}:${row.updated}`).join(",");
+        if (next === signature) return;
+        signature = next;
+        setMessages(rows);
+      } catch {
+        // Offline or mid-restart: the next tick tries again.
+      }
+    };
+
+    void load();
+
+    // Keep the unsubscribe this call returns. `unsubscribe("*")` drops every
+    // listener on the collection, so an overlapping mount — StrictMode remounts
+    // in dev, or a fast channel switch — could tear down the subscription that
+    // had just replaced this one, leaving the channel silent.
     void pb
       .collection("messages")
-      .getFullList<Message>({
-        filter: `channel = "${channel.id}"`,
-        sort: "created",
+      .subscribe<Message>("*", (event) => {
+        if (event.record.channel !== channelId) return;
+        if (event.action === "delete") removeMessage(event.record.id);
+        else upsertMessage(event.record);
       })
-      .then((rows) => !cancelled && setMessages(rows));
+      .then((off) => {
+        if (cancelled) void off();
+        else unsubscribe = off;
+      })
+      .catch(() => {
+        // No realtime on this connection; the poll below carries the channel.
+      });
 
-    void pb.collection("messages").subscribe<Message>("*", (event) => {
-      if (event.record.channel !== channel.id) return;
-      if (event.action === "delete") removeMessage(event.record.id);
-      else upsertMessage(event.record);
-    });
+    // Realtime can stall without erroring — a proxy idling out an SSE stream, a
+    // laptop waking from sleep. A slow refetch means the transcript converges
+    // anyway instead of waiting for someone to switch channels and back.
+    const poll = setInterval(() => void load(), 4000);
+    const onFocus = () => void load();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
 
     return () => {
       cancelled = true;
-      void pb.collection("messages").unsubscribe("*");
+      clearInterval(poll);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+      unsubscribe?.();
     };
   }, [channel?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Channel/agent edits made on another device should show up here too.
   useEffect(() => {
     if (!project) return;
-    void pb.collection("channels").subscribe("*", () => void loadScope());
-    void pb.collection("agents").subscribe("*", () => void loadScope());
+    let cancelled = false;
+    const offs: Array<() => void> = [];
+
+    for (const name of ["channels", "agents"]) {
+      void pb
+        .collection(name)
+        .subscribe("*", () => void loadScope())
+        .then((off) => (cancelled ? void off() : offs.push(off)))
+        .catch(() => {});
+    }
+
     return () => {
-      void pb.collection("channels").unsubscribe("*");
-      void pb.collection("agents").unsubscribe("*");
+      cancelled = true;
+      offs.forEach((off) => off());
     };
   }, [project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 

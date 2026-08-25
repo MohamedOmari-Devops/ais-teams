@@ -259,7 +259,7 @@ function Bubble({
 }) {
   const isUser = message.author_type === "user";
   return (
-    <Box sx={{ maxWidth: 780 }}>
+    <Box sx={{ width: "100%" }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
         <Box
           sx={{

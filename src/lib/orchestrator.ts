@@ -120,6 +120,21 @@ const live = new Map<string, LiveRun>();
 let listenersReady = false;
 
 /**
+ * Mirror a message row straight into the store when it belongs to the channel
+ * currently on screen.
+ *
+ * PocketBase realtime is still the path for what other devices do, but a
+ * device must not depend on a round trip through an SSE stream to see its own
+ * writes: that stream can stall behind a proxy or a sleeping laptop, and the
+ * transcript would then sit there looking empty until the channel is
+ * re-opened.
+ */
+function syncMessage(message: Message) {
+  const state = useApp.getState();
+  if (state.channel?.id === message.channel) state.upsertMessage(message);
+}
+
+/**
  * Attach the Rust event listeners exactly once.
  *
  * Deltas are buffered and flushed on a timer: writing every token to
@@ -175,10 +190,11 @@ async function flush(runId: string) {
   if (!run || run.buffer === run.lastFlushed) return;
   run.lastFlushed = run.buffer;
   try {
-    await pb.collection("messages").update(run.messageId, {
+    const updated = await pb.collection("messages").update<Message>(run.messageId, {
       body: run.buffer,
       status: "streaming",
     });
+    syncMessage(updated);
   } catch {
     // A dropped flush is harmless — the final write carries the whole reply.
   }
@@ -210,13 +226,15 @@ async function finish(
       ? "error"
       : "done";
 
-  await pb.collection("messages").update(run.messageId, {
-    body: body || (failed ? "" : raw),
-    compressed: body ? await compressText(body) : "",
-    status,
-    claude_session_id: result.sessionId,
-    error: failed ? result.stderr.slice(0, 5000) : "",
-  });
+  syncMessage(
+    await pb.collection("messages").update<Message>(run.messageId, {
+      body: body || (failed ? "" : raw),
+      compressed: body ? await compressText(body) : "",
+      status,
+      claude_session_id: result.sessionId,
+      error: failed ? result.stderr.slice(0, 5000) : "",
+    }),
+  );
 
   await pb.collection("runs").update(run.runRecordId, {
     status: result.cancelled ? "cancelled" : failed ? "error" : "done",
@@ -318,6 +336,8 @@ export async function postUserMessage(
     status: "done",
   });
 
+  syncMessage(message);
+
   await remember({
     projectId: project.id,
     lane: channel.lane,
@@ -356,6 +376,7 @@ export async function dispatchTurn(
     run_id: runId,
     context_tokens: pack.tokens,
   });
+  syncMessage(placeholder);
 
   // A run this device is about to execute is created already claimed. Creating
   // it as "queued" would make this host's own queue worker claim it and spawn a
@@ -470,7 +491,11 @@ export async function cancelRun(runId: string) {
   await cancelAgentRun(runId);
   const run = live.get(runId);
   if (run) {
-    await pb.collection("messages").update(run.messageId, { status: "cancelled" });
+    syncMessage(
+      await pb
+        .collection("messages")
+        .update<Message>(run.messageId, { status: "cancelled" }),
+    );
   }
 }
 
