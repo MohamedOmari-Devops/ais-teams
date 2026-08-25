@@ -1,18 +1,70 @@
 @import "tailwindcss";
 
-@theme {
-  --color-ink-900: #0b0d12;
-  --color-ink-800: #12151d;
-  --color-ink-700: #1a1e28;
-  --color-ink-600: #232838;
-  --color-ink-500: #333a4d;
-  --color-fog-300: #9aa4bd;
-  --color-fog-100: #e6eaf5;
-  --color-accent: #7c5cff;
-  --color-accent-soft: #2a2350;
-  --color-ok: #3fbf7f;
-  --color-warn: #e0a44a;
-  --color-bad: #e2585f;
+/* ---------------------------------------------------------------------------
+   Palette.
+
+   Every colour in the app resolves through one of these variables, so the
+   whole UI flips between light and dark by swapping `data-theme` on <html> —
+   no re-render, no second stylesheet. Light is the base so a paint that
+   somehow beats the stamping script lands on the safer of the two; index.html
+   stamps the real mode before the first paint.
+
+   The `ink` ramp goes background -> surface -> fill -> border in both modes;
+   only the direction of the ramp flips. `fog-100` is body text, `fog-300` is
+   muted text. Keeping the roles identical is what lets components stay
+   mode-agnostic.
+--------------------------------------------------------------------------- */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --ais-ink-900: #f4f6fb;
+  --ais-ink-800: #ffffff;
+  --ais-ink-700: #eceff7;
+  --ais-ink-600: #dde2ee;
+  --ais-ink-500: #bfc7d9;
+  --ais-fog-300: #5b6478;
+  --ais-fog-100: #12151d;
+  --ais-accent: #6544f0;
+  --ais-accent-soft: #e6e1ff;
+  --ais-ok: #17915a;
+  --ais-warn: #a86f12;
+  --ais-bad: #d03a44;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --ais-ink-900: #0b0d12;
+  --ais-ink-800: #12151d;
+  --ais-ink-700: #1a1e28;
+  --ais-ink-600: #232838;
+  --ais-ink-500: #333a4d;
+  --ais-fog-300: #9aa4bd;
+  --ais-fog-100: #e6eaf5;
+  --ais-accent: #7c5cff;
+  --ais-accent-soft: #2a2350;
+  --ais-ok: #3fbf7f;
+  --ais-warn: #e0a44a;
+  --ais-bad: #e2585f;
+}
+
+/* Tailwind tokens point at the variables above rather than at literals, so
+   `bg-ink-800` and friends follow the mode too. `static` keeps every variable
+   in the output even when only JS reads it. */
+@theme static {
+  --color-ink-900: var(--ais-ink-900);
+  --color-ink-800: var(--ais-ink-800);
+  --color-ink-700: var(--ais-ink-700);
+  --color-ink-600: var(--ais-ink-600);
+  --color-ink-500: var(--ais-ink-500);
+  --color-fog-300: var(--ais-fog-300);
+  --color-fog-100: var(--ais-fog-100);
+  --color-accent: var(--ais-accent);
+  --color-accent-soft: var(--ais-accent-soft);
+  --color-ok: var(--ais-ok);
+  --color-warn: var(--ais-warn);
+  --color-bad: var(--ais-bad);
   --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, monospace;
 }
 
@@ -27,7 +79,7 @@ body,
 body {
   margin: 0;
   background: transparent;
-  color: var(--color-fog-100);
+  color: var(--ais-fog-100);
   font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
@@ -37,7 +89,7 @@ body {
 /* Opened in a normal browser instead of the Tauri window: paint the backdrop
    so the area outside the rounded shell is not blank white. */
 html.web {
-  background: var(--color-ink-900);
+  background: var(--ais-ink-900);
 }
 
 /* The frameless shell itself. */
@@ -46,8 +98,8 @@ html.web {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--color-ink-900);
-  border: 1px solid var(--color-ink-600);
+  background: var(--ais-ink-900);
+  border: 1px solid var(--ais-ink-600);
   border-radius: 12px;
 }
 
@@ -56,7 +108,7 @@ html.web {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-ink-500);
+  background: var(--ais-ink-500);
   border-radius: 99px;
 }
 ::-webkit-scrollbar-track {
@@ -72,7 +124,7 @@ html.web {
 .caret::after {
   content: "▍";
   animation: blink 1s steps(1) infinite;
-  color: var(--color-accent);
+  color: var(--ais-accent);
 }
 
 /* Messenger-style "someone is typing" dots. */

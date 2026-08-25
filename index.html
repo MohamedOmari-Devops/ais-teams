@@ -5,6 +5,23 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AIS Teams</title>
+    <script>
+      // Stamp the saved theme before the first paint, otherwise launching in
+      // light mode flashes the dark shell (and the other way round). Kept in
+      // sync with src/color-mode.tsx.
+      (function () {
+        try {
+          var m = localStorage.getItem("ais-teams.theme");
+          if (m !== "light" && m !== "dark")
+            m = matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+          document.documentElement.dataset.theme = m;
+        } catch (e) {
+          document.documentElement.dataset.theme = "dark";
+        }
+      })();
+    </script>
   </head>
 
   <body>

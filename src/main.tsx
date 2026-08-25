@@ -1,8 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { ThemeProvider } from "@mui/material/styles";
 import App from "./App";
-import theme from "./theme";
+import { ColorModeProvider } from "./color-mode";
 import { isTauri } from "./lib/bridge";
 import "./index.css";
 
@@ -12,8 +11,8 @@ if (!isTauri()) document.documentElement.classList.add("web");
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <ThemeProvider theme={theme}>
+    <ColorModeProvider>
       <App />
-    </ThemeProvider>
+    </ColorModeProvider>
   </React.StrictMode>,
 );

@@ -6,7 +6,10 @@ import FilterNoneRoundedIcon from "@mui/icons-material/FilterNoneRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import ExtensionRoundedIcon from "@mui/icons-material/ExtensionRounded";
+import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
+import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
 import { isTauri } from "../lib/bridge";
+import { useColorMode } from "../color-mode";
 import { ink, fog } from "../theme";
 
 /**
@@ -28,6 +31,7 @@ export default function TitleBar({
   onOpenPlugins?: () => void;
 }) {
   const [maximized, setMaximized] = useState(false);
+  const { mode, toggle } = useColorMode();
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -109,6 +113,16 @@ export default function TitleBar({
           </Box>
         )}
       </Box>
+
+      <Tooltip title={mode === "dark" ? "Light theme" : "Dark theme"}>
+        <IconButton size="small" onClick={toggle}>
+          {mode === "dark" ? (
+            <LightModeRoundedIcon sx={{ fontSize: 15 }} />
+          ) : (
+            <DarkModeRoundedIcon sx={{ fontSize: 15 }} />
+          )}
+        </IconButton>
+      </Tooltip>
 
       {onOpenPlugins && (
         <Tooltip title="Plugins">

@@ -10,7 +10,6 @@ import {
 } from "@mui/material";
 import DnsRoundedIcon from "@mui/icons-material/DnsRounded";
 import {
-  defaultPbUrl,
   login,
   pbUrl,
   resetPbUrl,
@@ -27,11 +26,16 @@ import { fog, ink } from "../theme";
  * `.env`), so the URL field stays hidden behind a question. It opens on its
  * own when this device is already pointed somewhere else, so a custom address
  * is never invisible.
+ *
+ * The shipped address is never printed anywhere on this screen: it is
+ * infrastructure, not something a user is asked to read or copy. The field
+ * starts empty unless this device already has an override of its own, and
+ * leaving it empty simply means "use whatever the build ships with".
  */
 export default function Login({ onDone }: { onDone: () => void }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [custom, setCustom] = useState(usingCustomPbUrl());
-  const [url, setUrl] = useState(pbUrl());
+  const [url, setUrl] = useState(usingCustomPbUrl() ? pbUrl() : "");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -43,9 +47,9 @@ export default function Login({ onDone }: { onDone: () => void }) {
     setBusy(true);
     setError("");
     try {
-      // Collapsed means "whatever .env says", even if the field holds an old
-      // value from before it was closed.
-      if (custom) setPbUrl(url);
+      // Collapsed — or opened and left blank — means "whatever .env says",
+      // even if the field holds an old value from before it was closed.
+      if (custom && url.trim()) setPbUrl(url.trim());
       else resetPbUrl();
 
       if (mode === "login") await login(email, password);
@@ -60,7 +64,7 @@ export default function Login({ onDone }: { onDone: () => void }) {
 
   function useDefault() {
     resetPbUrl();
-    setUrl(defaultPbUrl());
+    setUrl("");
     setCustom(false);
   }
 
@@ -87,7 +91,7 @@ export default function Login({ onDone }: { onDone: () => void }) {
       >
         <Typography sx={{ fontSize: 18, fontWeight: 600 }}>AIS Teams</Typography>
         <Typography sx={{ fontSize: 12, color: fog[300], mb: 3 }}>
-          Agent workspace backed by your own PocketBase.
+          Sign in to your agent workspace.
         </Typography>
 
         <Stack spacing={2}>
@@ -169,8 +173,8 @@ export default function Login({ onDone }: { onDone: () => void }) {
                 autoFocus
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder={defaultPbUrl()}
-                helperText={`Default from .env: ${defaultPbUrl()}`}
+                placeholder="https://pocketbase.example.com"
+                // helperText="Leave empty to use the built-in server."
                 slotProps={{
                   input: { sx: { fontFamily: "var(--font-mono)", fontSize: 12 } },
                 }}
