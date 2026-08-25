@@ -6,6 +6,7 @@ import FilterNoneRoundedIcon from "@mui/icons-material/FilterNoneRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import ExtensionRoundedIcon from "@mui/icons-material/ExtensionRounded";
+import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
 import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
 import { isTauri } from "../lib/bridge";
@@ -23,12 +24,15 @@ export default function TitleBar({
   subtitle,
   onOpenSettings,
   onOpenPlugins,
+  onOpenArchitect,
 }: {
   subtitle?: string;
   /** Opens project settings. Omitted before sign-in, where there is none. */
   onOpenSettings?: () => void;
   /** Opens the plugin browser. Omitted before sign-in. */
   onOpenPlugins?: () => void;
+  /** Opens the master agent. Omitted before sign-in. */
+  onOpenArchitect?: () => void;
 }) {
   const [maximized, setMaximized] = useState(false);
   const { mode, toggle } = useColorMode();
@@ -123,6 +127,14 @@ export default function TitleBar({
           )}
         </IconButton>
       </Tooltip>
+
+      {onOpenArchitect && (
+        <Tooltip title="Architect — describe a goal, get a team">
+          <IconButton size="small" onClick={onOpenArchitect}>
+            <AutoAwesomeRoundedIcon sx={{ fontSize: 15, color: "primary.main" }} />
+          </IconButton>
+        </Tooltip>
+      )}
 
       {onOpenPlugins && (
         <Tooltip title="Plugins">

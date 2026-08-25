@@ -41,6 +41,16 @@ nothing raw is ever sent to a model twice.
 - **Agents with profiles.** Every agent has its own persona, model, effort
   level, permission mode, tool allowlist and token budget. The persona is
   injected as `--append-system-prompt`; the rest map onto Claude Code CLI flags.
+- **A master agent that builds the team.** The sparkle icon in the title bar
+  opens the Architect. Give it a goal — "a marketing site for a coffee brand" —
+  and it interviews you about stack, style and scope, then proposes a team:
+  agents with real missions, channels wired to context lanes, goals. One click
+  applies the plan to the project. Reopen it later to change something and it
+  still has the whole conversation: it lives in its own hidden channel, so it
+  resumes the same Claude session and reads the same context lane.
+- **Light and dark.** The sun/moon in the title bar switches the whole app,
+  MUI and Tailwind alike, off one `data-theme` attribute. It follows the OS
+  until you pick a side, then remembers your choice.
 - **Plugins, from inside the app.** The puzzle icon in the title bar opens a
   searchable browser over every plugin in your configured marketplaces —
   install, enable, update, remove, and add marketplaces. It drives the CLI's
@@ -299,12 +309,14 @@ ais-teams/
 ├── src/                          React frontend
 │   ├── App.tsx                   auth gate, subscriptions, layout
 │   ├── store.ts                  zustand: project/channel/messages/drafts
-│   ├── theme.ts                  MUI dark theme (shared palette with Tailwind)
+│   ├── theme.ts                  MUI theme per mode (shared palette with Tailwind)
+│   ├── color-mode.tsx            light/dark provider, OS-following, persisted
 │   ├── components/
 │   │   ├── TitleBar.tsx          custom chrome for the frameless window
 │   │   ├── Login.tsx             auth; server address hidden behind a link
 │   │   ├── Sidebar.tsx           projects, channels, agent roster
 │   │   ├── ProjectDialog.tsx     project panel (brief, folders, agent import)
+│   │   ├── ArchitectDialog.tsx   master agent: goal in, team out
 │   │   ├── PluginsDialog.tsx     plugin browser, install, marketplaces
 │   │   ├── ChannelDialog.tsx     channel settings (agents, description, project)
 │   │   ├── Chat.tsx              transcript, typing indicator, composer
@@ -314,6 +326,7 @@ ais-teams/
 │       ├── pb.ts                 PocketBase client, auth, URL override
 │       ├── bridge.ts             typed wrappers over Rust commands/events
 │       ├── context.ts            lanes, weights, packing, FACTS, compaction
+│       ├── architect.ts          master agent: persona, plan parsing, apply
 │       ├── orchestrator.ts       turn engine + queue worker
 │       └── types.ts              collection shapes
 ├── src-tauri/

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  hostInfo,
   isTauri,
   onPtyData,
   onPtyExit,
@@ -8,6 +9,9 @@ import {
   ptyWrite,
 } from "../lib/bridge";
 import { useApp } from "../store";
+
+/** Carriage return: what the shell reads as "the user pressed Enter". */
+const ENTER = "\r";
 
 /**
  * Raw Claude Code TUI in a pane.
@@ -18,8 +22,22 @@ import { useApp } from "../store";
  *
  * Rendering is deliberately minimal: ANSI escapes are stripped rather than
  * interpreted. Swap this for xterm.js when full fidelity is needed.
+ *
+ * It doubles as the architect's hands: a plan's setup commands are handed over
+ * as `commands`, which opens a plain shell here instead of the TUI and types
+ * them in. They are shown running rather than executed invisibly — scaffolding
+ * a project is exactly the kind of thing a human wants to watch.
  */
-export default function Terminal({ onClose }: { onClose: () => void }) {
+export default function Terminal({
+  onClose,
+  commands,
+  onCommandsDone,
+}: {
+  onClose: () => void;
+  /** Setup commands to run in a shell as soon as the pane opens. */
+  commands?: string[];
+  onCommandsDone?: () => void;
+}) {
   const { project } = useApp();
   const [output, setOutput] = useState("");
   const [input, setInput] = useState("");
@@ -53,17 +71,39 @@ export default function Terminal({ onClose }: { onClose: () => void }) {
     bottomRef.current?.scrollIntoView();
   }, [output]);
 
-  async function start() {
+  async function start(program?: string) {
     if (!project || !isTauri()) return;
     setOutput("");
     await ptyOpen({
       sessionId,
       cwd: project.root_path || ".",
+      program,
       cols: 120,
       rows: 30,
     });
     setRunning(true);
   }
+
+  // Setup commands run in the platform shell, never in the Claude TUI — the
+  // default program for this pane is `claude`, which would swallow them as
+  // prompts.
+  useEffect(() => {
+    if (!commands?.length || !isTauri()) return;
+    let cancelled = false;
+    void (async () => {
+      const info = await hostInfo();
+      if (cancelled) return;
+      const shell = info.platform === "windows" ? "powershell.exe" : "bash";
+      await start(shell);
+      for (const command of commands) {
+        await ptyWrite(sessionId, command + ENTER);
+      }
+      onCommandsDone?.();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [commands]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function stop() {
     await ptyClose(sessionId);

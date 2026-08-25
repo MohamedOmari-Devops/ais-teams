@@ -7,9 +7,11 @@ import TerminalPane from "./components/Terminal";
 import TitleBar from "./components/TitleBar";
 import ProjectDialog from "./components/ProjectDialog";
 import PluginsDialog from "./components/PluginsDialog";
+import ArchitectDialog from "./components/ArchitectDialog";
 import { pb, isAuthed } from "./lib/pb";
 import { claudeDoctor, hostInfo, isTauri } from "./lib/bridge";
 import { initRunListeners, startQueueWorker } from "./lib/orchestrator";
+import { isArchitectAgent, isArchitectChannel } from "./lib/architect";
 import { useApp } from "./store";
 import type { Agent, Channel, Message, Project } from "./lib/types";
 
@@ -23,6 +25,9 @@ export default function App() {
     undefined,
   );
   const [showPlugins, setShowPlugins] = useState(false);
+  const [showArchitect, setShowArchitect] = useState(false);
+  // Setup commands the architect handed over, consumed once by the terminal.
+  const [setupCommands, setSetupCommands] = useState<string[]>([]);
 
   const {
     project,
@@ -83,10 +88,14 @@ export default function App() {
         sort: "name",
       }),
     ]);
-    setChannels(channels);
-    setAgents(agents);
+    // The architect and its room are workspace plumbing, not part of the
+    // project's own team — keeping them out of the store keeps them out of the
+    // sidebar, out of channel auto-selection and out of every broadcast.
+    const visibleChannels = channels.filter((c) => !isArchitectChannel(c));
+    setChannels(visibleChannels);
+    setAgents(agents.filter((a) => !isArchitectAgent(a)));
     if (!channel || channel.project !== project.id) {
-      setChannel(channels[0] ?? null);
+      setChannel(visibleChannels[0] ?? null);
     }
   }, [project, channel, setChannels, setAgents, setChannel]);
 
@@ -156,6 +165,7 @@ export default function App() {
         subtitle={subtitle}
         onOpenSettings={project ? () => setProjectPanel(project) : undefined}
         onOpenPlugins={() => setShowPlugins(true)}
+        onOpenArchitect={() => setShowArchitect(true)}
       />
       <div className="relative flex flex-1 overflow-hidden">
       <Sidebar
@@ -169,7 +179,13 @@ export default function App() {
 
       <main className="flex flex-1 overflow-hidden">
         <Chat />
-        {showTerminal && <TerminalPane onClose={() => setShowTerminal(false)} />}
+        {showTerminal && (
+          <TerminalPane
+            onClose={() => setShowTerminal(false)}
+            commands={setupCommands}
+            onCommandsDone={() => setSetupCommands([])}
+          />
+        )}
       </main>
 
       <button
@@ -194,6 +210,21 @@ export default function App() {
       )}
 
       {showPlugins && <PluginsDialog onClose={() => setShowPlugins(false)} />}
+
+      {showArchitect && (
+        <ArchitectDialog
+          project={project}
+          onClose={() => setShowArchitect(false)}
+          onRunSetup={(commands) => {
+            setSetupCommands(commands);
+            setShowTerminal(true);
+          }}
+          onApplied={() => {
+            void loadProjects();
+            void loadScope();
+          }}
+        />
+      )}
 
       {projectPanel !== undefined && (
         <ProjectDialog
