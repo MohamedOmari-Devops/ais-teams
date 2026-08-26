@@ -64,6 +64,9 @@ function personaHash(agent: Agent): string {
     agent.name,
     agent.instructions ?? "",
     String(agent.verbose_output ?? false),
+    // A session id is issued by one backend and meaningless to another, so
+    // switching CLI must start a fresh session rather than resume a dead one.
+    agent.cli_profile ?? "",
   ].join("|");
 
   let hash = 5381;
@@ -80,6 +83,25 @@ function personaHash(agent: Agent): string {
  * without touching any agent's persona, and every agent in the project
  * inherits them.
  */
+/**
+ * Which CLI runs this agent's turn, and on which model.
+ *
+ * The profile is inherited agent -> project -> machine default. The model is
+ * not inherited across a backend switch: `default_model` on a project names a
+ * Claude model, which means nothing to Codex or Kimi, so an agent that picks
+ * its own CLI starts from that CLI's default model unless it names one itself.
+ */
+function backendFor(
+  project: Project,
+  agent: Agent,
+): { provider?: string; model?: string } {
+  const provider = agent.cli_profile || project.cli_profile || "";
+  const inherits =
+    !agent.cli_profile || agent.cli_profile === project.cli_profile;
+  const model = agent.model || (inherits ? project.default_model : "") || "";
+  return { provider: provider || undefined, model: model || undefined };
+}
+
 function runBrief(project: Project, channel: Channel, pack: string): string {
   const sections: string[] = [];
 
@@ -422,7 +444,7 @@ export async function dispatchTurn(
       prompt,
       instructions: agent.instructions,
       contextPack: brief,
-      model: agent.model || project.default_model || undefined,
+      ...backendFor(project, agent),
       resumeSessionId: (await resumeIdFor(agent, channel.id)) || undefined,
       permissionMode: agent.permission_mode || undefined,
       effort: agent.effort || undefined,
@@ -555,7 +577,7 @@ export function startQueueWorker(): () => void {
       prompt: run.prompt,
       instructions: agent.instructions,
       contextPack: runBrief(project, channel, pack.text),
-      model: agent.model || project.default_model || undefined,
+      ...backendFor(project, agent),
       resumeSessionId: (await resumeIdFor(agent, channel.id)) || undefined,
       permissionMode: agent.permission_mode || undefined,
       effort: agent.effort || undefined,

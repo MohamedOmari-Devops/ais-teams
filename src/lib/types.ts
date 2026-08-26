@@ -26,6 +26,8 @@ export interface Project extends Base {
   agents_dir: string;
   /** Accent colour for the project chip. */
   color: string;
+  /** CLI backend for this project's agents. Empty inherits the machine default. */
+  cli_profile: string;
 }
 
 export type PermissionMode =
@@ -56,6 +58,8 @@ export interface Agent extends Base {
   verbose_output: boolean;
   /** Enable the Claude in Chrome integration for this agent's turns. */
   chrome: boolean;
+  /** CLI backend override. Empty inherits the project's, then the machine's. */
+  cli_profile: string;
   enabled: boolean;
 }
 
@@ -161,6 +165,8 @@ export interface AgentRunRequest {
   channelId: string;
   cwd: string;
   prompt: string;
+  /** CLI profile id. Omitted uses the machine's default profile. */
+  provider?: string;
   instructions?: string;
   contextPack?: string;
   systemPrompt?: string;
@@ -226,4 +232,64 @@ export interface HostInfo {
   hostname: string;
   platform: string;
   canRunAgents: boolean;
+}
+
+// ------------------------------------------------------------ CLI backends
+
+export type ArgvKind = "claude" | "codex" | "openCode" | "template";
+export type OutputFormat = "claudeStreamJson" | "codexJsonl" | "plain";
+export type PromptVia = "stdin" | "arg";
+
+/** What a backend understands, so the runner can drop flags it would reject. */
+export interface CliSupports {
+  resume: boolean;
+  systemPrompt: boolean;
+  permissionMode: boolean;
+  effort: boolean;
+  tools: boolean;
+  addDirs: boolean;
+}
+
+/** One agent CLI backend, as described in global settings. */
+export interface CliProfile {
+  id: string;
+  label: string;
+  description: string;
+  /** Executable name or absolute path. */
+  bin: string;
+  argv: ArgvKind;
+  /**
+   * Literal argv for `argv: "template"`. Placeholders: `{prompt}`, `{model}`,
+   * `{cwd}`, `{system}`, `{session}`.
+   */
+  template: string[];
+  extraArgs: string[];
+  promptVia: PromptVia;
+  output: OutputFormat;
+  defaultModel: string;
+  /** Child environment; values may reference vault keys as `{anthropic}`. */
+  env: Record<string, string>;
+  /** Vault entries this profile needs, for the "key missing" hint. */
+  keyRefs: string[];
+  supports: CliSupports;
+  builtin: boolean;
+  enabled: boolean;
+}
+
+/** Machine-local settings. API keys never reach PocketBase. */
+export interface GlobalSettings {
+  defaultProfile: string;
+  keys: Record<string, string>;
+  profiles: CliProfile[];
+  /** Where the settings file lives on this machine. */
+  path: string;
+}
+
+export interface CliProbe {
+  id: string;
+  bin: string;
+  ok: boolean;
+  version: string;
+  error: string;
+  missingKeys: string[];
 }

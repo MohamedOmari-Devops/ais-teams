@@ -5,11 +5,11 @@ import Chat from "./components/Chat";
 import AgentEditor from "./components/AgentEditor";
 import TerminalPane from "./components/Terminal";
 import TitleBar from "./components/TitleBar";
-import ProjectDialog from "./components/ProjectDialog";
+import SettingsDialog, { type SectionId } from "./components/SettingsDialog";
 import PluginsDialog from "./components/PluginsDialog";
 import ArchitectDialog from "./components/ArchitectDialog";
 import { pb, isAuthed } from "./lib/pb";
-import { claudeDoctor, hostInfo, isTauri } from "./lib/bridge";
+import { claudeDoctor, hostInfo, isTauri, readSettings } from "./lib/bridge";
 import { initRunListeners, startQueueWorker } from "./lib/orchestrator";
 import { isArchitectAgent, isArchitectChannel } from "./lib/architect";
 import { useApp } from "./store";
@@ -24,6 +24,9 @@ export default function App() {
   const [projectPanel, setProjectPanel] = useState<Project | null | undefined>(
     undefined,
   );
+  // Which settings section the panel opens on, so the runner status line can
+  // land on the backend that is failing rather than on the project's name.
+  const [settingsSection, setSettingsSection] = useState<SectionId>("general");
   const [showPlugins, setShowPlugins] = useState(false);
   const [showArchitect, setShowArchitect] = useState(false);
   // Setup commands the architect handed over, consumed once by the terminal.
@@ -50,7 +53,15 @@ export default function App() {
     void (async () => {
       const info = await hostInfo();
       const version = info.canRunAgents ? await claudeDoctor() : "";
-      setHost(info.canRunAgents && !version.startsWith("unavailable"), version);
+      // Say which CLI the runner actually spawns: with several backends
+      // configured, "runner ready" alone does not answer the question that
+      // matters when a turn comes back wrong.
+      const settings = info.canRunAgents ? await readSettings() : null;
+      const backend =
+        settings?.profiles.find((p) => p.id === settings.defaultProfile)?.label ??
+        "";
+      const label = [backend, version].filter(Boolean).join(" · ");
+      setHost(info.canRunAgents && !version.startsWith("unavailable"), label);
       await initRunListeners();
     })();
   }, [authed, setHost]);
@@ -211,7 +222,14 @@ export default function App() {
     <div className="app-shell">
       <TitleBar
         subtitle={subtitle}
-        onOpenSettings={project ? () => setProjectPanel(project) : undefined}
+        onOpenSettings={
+          project
+            ? () => {
+                setSettingsSection("general");
+                setProjectPanel(project);
+              }
+            : undefined
+        }
         onOpenPlugins={() => setShowPlugins(true)}
         onOpenArchitect={() => setShowArchitect(true)}
       />
@@ -243,9 +261,16 @@ export default function App() {
         {showTerminal ? "hide terminal" : "terminal"}
       </button>
 
-      <div className="absolute bottom-2 left-72 z-10 font-mono text-[10px] text-fog-300">
+      <button
+        onClick={() => {
+          setSettingsSection("backends");
+          setProjectPanel(project);
+        }}
+        title="CLI backends"
+        className="absolute bottom-2 left-72 z-10 font-mono text-[10px] text-fog-300 hover:text-fog-100"
+      >
         {hostCanRun ? `runner ready · ${claudeVersion}` : "runner offline"}
-      </div>
+      </button>
 
       {editing && (
         <AgentEditor
@@ -275,8 +300,9 @@ export default function App() {
       )}
 
       {projectPanel !== undefined && (
-        <ProjectDialog
+        <SettingsDialog
           project={projectPanel}
+          initialSection={settingsSection}
           onClose={(saved) => {
             setProjectPanel(undefined);
             if (saved) setProject(saved);

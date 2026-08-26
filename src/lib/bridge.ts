@@ -9,7 +9,10 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   AgentFile,
   AgentRunRequest,
+  CliProbe,
+  CliProfile,
   ContextPack,
+  GlobalSettings,
   HostInfo,
   PluginCatalog,
 } from "./types";
@@ -24,6 +27,8 @@ export interface RunStarted {
   sessionId: string;
   resumed: boolean;
   contextTokens: number;
+  /** CLI profile that actually ran the turn. */
+  provider: string;
 }
 
 export interface RunDelta {
@@ -49,6 +54,7 @@ export interface RunEnded {
   cancelled: boolean;
   text: string;
   stderr: string;
+  provider: string;
 }
 
 export async function hostInfo(): Promise<HostInfo> {
@@ -56,6 +62,56 @@ export async function hostInfo(): Promise<HostInfo> {
     return { hostname: "browser", platform: "web", canRunAgents: false };
   }
   return invoke<HostInfo>("host_info");
+}
+
+/**
+ * Machine-local settings: the API key vault and the CLI backends.
+ *
+ * A browser client gets an empty view on purpose. Keys belong on the machine
+ * that spawns the processes; putting them in `localStorage` would scatter them
+ * across every device that ever opened the app, for no gain — a browser has no
+ * CLI to hand them to.
+ */
+export async function readSettings(): Promise<GlobalSettings> {
+  if (!isTauri()) {
+    return { defaultProfile: "claude", keys: {}, profiles: [], path: "" };
+  }
+  return invoke<GlobalSettings>("read_settings");
+}
+
+export async function writeSettings(settings: {
+  defaultProfile: string;
+  keys: Record<string, string>;
+  profiles: CliProfile[];
+}): Promise<GlobalSettings> {
+  return invoke<GlobalSettings>("write_settings", settings);
+}
+
+/** Is this backend's binary on PATH, and are its keys filled in? */
+export async function cliDoctor(profileId: string): Promise<CliProbe> {
+  if (!isTauri()) {
+    return {
+      id: profileId,
+      bin: "",
+      ok: false,
+      version: "",
+      error: "no CLI on this device",
+      missingKeys: [],
+    };
+  }
+  try {
+    return await invoke<CliProbe>("cli_doctor", { profileId });
+  } catch (err) {
+    // Mobile builds ship the pure helpers only; there is no CLI to probe.
+    return {
+      id: profileId,
+      bin: "",
+      ok: false,
+      version: "",
+      error: String(err),
+      missingKeys: [],
+    };
+  }
 }
 
 export async function claudeDoctor(): Promise<string> {

@@ -20,7 +20,7 @@ import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import { pb, logout } from "../lib/pb";
 import { useApp } from "../store";
 import ChannelDialog from "./ChannelDialog";
-import ProjectDialog from "./ProjectDialog";
+import SettingsDialog from "./SettingsDialog";
 import { ink, fog, accent } from "../theme";
 import type { Agent, Channel, Project } from "../lib/types";
 
@@ -289,7 +289,7 @@ export default function Sidebar({ projects, onReload, onEditAgent }: Props) {
       </Dialog>
 
       {projectPanel !== undefined && (
-        <ProjectDialog
+        <SettingsDialog
           project={projectPanel}
           onClose={(saved) => {
             const wasCreating = projectPanel === null;

@@ -22,6 +22,7 @@ nothing raw is ever sent to a model twice.
 - [Quickstart](#quickstart)
 - [WSL networking (important)](#wsl-networking-important)
 - [Connecting a phone](#connecting-a-phone)
+- [CLI backends and API keys](#cli-backends-and-api-keys)
 - [Project layout](#project-layout)
 - [Data model](#data-model)
 - [Rust commands and events](#rust-commands-and-events)
@@ -302,6 +303,63 @@ Keep the desktop app open. It is the only thing that can actually run agents.
 
 ---
 
+## CLI backends and API keys
+
+An agent turn is one CLI process. Which CLI is a setting, not a hard-coded
+choice: Claude Code, Codex, OpenCode and Kimi all take a prompt and stream text
+back, so the differences between them — argv, output format, where the prompt
+goes, which key the child needs — are carried by a **profile** instead of being
+baked into the runner (`src-tauri/src/providers.rs`).
+
+Open **Settings** from the title bar. The left rail splits into two halves:
+everything under *Project* is synced through PocketBase, everything under
+*Global* stays on this machine.
+
+### Shipped backends
+
+| Profile | Binary | Output | Key | Notes |
+|---|---|---|---|---|
+| `claude` | `claude` | stream-json | `anthropic` *(optional)* | Resume, permission modes, effort, tool lists. Leave the key blank to keep the CLI's own sign-in. |
+| `codex` | `codex` | `--json` lines | `openai` *(optional)* | `codex exec`. No system-prompt flag and no tool allowlist, so the persona rides in the message. Permission modes collapse onto `--sandbox` / `--full-auto` / bypass. |
+| `opencode` | `opencode` | plain text | any of the three | Model is `provider/model`, e.g. `anthropic/claude-sonnet-4-5`. |
+| `kimi` | `kimi` | plain text | `moonshot` | Argv is a template — edit it in settings if your build names the non-interactive flag differently. |
+| `kimi-claude` | `claude` | stream-json | `moonshot` | Claude Code pointed at Moonshot's Anthropic-compatible endpoint. Full streaming and session resume, billed to a Moonshot key. |
+
+**Test** next to a profile runs `<bin> --version` and reports whether the binary
+is on PATH and whether its keys are filled in.
+
+### Choosing one
+
+The backend is inherited **agent → project → machine default**. An agent that
+picks its own CLI does *not* inherit the project's `default_model`: a Claude
+model name means nothing to Codex, so that agent starts from its backend's own
+default model unless it names one. Switching an agent's backend also starts a
+fresh session — a session id issued by one CLI is meaningless to another.
+
+### Where keys live
+
+In one JSON file on the machine that runs the agents (its path is printed in
+the API keys panel; `0600` on unix), and nowhere else. They are **not** written
+to PocketBase: a key synced through the database would be readable by every
+member of the project, and a binary path is meaningless on anyone else's
+machine. Keys reach a CLI as environment variables on the child process, never
+as argv — argv is readable by every other process on the box.
+
+A variable whose key is blank is left **unset** rather than set to an empty
+string, so a CLI you signed into interactively keeps using its own credentials.
+
+### Adding your own CLI
+
+*Global → CLI backends → Add a CLI* creates a template profile. Give it a
+binary and one argument per line; `{prompt}`, `{model}`, `{cwd}`, `{system}` and
+`{session}` are substituted, and an argument whose placeholder is empty is
+dropped along with the flag in front of it — so `--model {model}` with no model
+cannot swallow the prompt. The *Understands* chips tell the runner which flags
+this CLI actually has; the rest are dropped instead of being passed and
+rejected.
+
+---
+
 ## Project layout
 
 ```
@@ -315,7 +373,8 @@ ais-teams/
 │   │   ├── TitleBar.tsx          custom chrome for the frameless window
 │   │   ├── Login.tsx             auth; server address hidden behind a link
 │   │   ├── Sidebar.tsx           projects, channels, agent roster
-│   │   ├── ProjectDialog.tsx     project panel (brief, folders, agent import)
+│   │   ├── SettingsDialog.tsx    settings shell: project sections + global sidebar
+│   │   ├── GlobalSettings.tsx    API key vault + CLI backend editor (machine-local)
 │   │   ├── ArchitectDialog.tsx   master agent: goal in, team out
 │   │   ├── PluginsDialog.tsx     plugin browser, install, marketplaces
 │   │   ├── ChannelDialog.tsx     channel settings (agents, description, project)
@@ -332,7 +391,8 @@ ais-teams/
 ├── src-tauri/
 │   ├── src/
 │   │   ├── lib.rs                plugins, state, command registration
-│   │   ├── runner.rs             headless `claude -p` runs
+│   │   ├── runner.rs             headless turns, whichever CLI backend is chosen
+│   │   ├── providers.rs          CLI profiles + API key vault (+ unit tests)
 │   │   ├── agentfiles.rs         parses `.md` agent definitions
 │   │   ├── plugins.rs            wraps `claude plugin` / marketplaces
 │   │   ├── pty.rs                interactive PTY sessions (desktop only)
@@ -344,7 +404,8 @@ ais-teams/
 │   ├── docker-entrypoint.sh      fixes pb_data ownership, drops privileges
 │   ├── docker-compose.yml        builds the image, runs it in WSL Docker
 │   └── pb_migrations/
-│       └── 1756000000_init_schema.js
+│       ├── 1756000000_init_schema.js
+│       └── …_cli_profile.js      per-project / per-agent CLI backend
 └── scripts/seed.mjs              demo project + agents + channels
 ```
 
@@ -356,8 +417,8 @@ Nine collections, all defined in `pocketbase/pb_migrations/1756000000_init_schem
 
 | Collection | Purpose | Key fields |
 |---|---|---|
-| `projects` | one codebase / product | `root_path`, `agents_dir`, `instructions`, `color`, `owner`, `members`, `context_budget` |
-| `agents` | a Claude Code persona | `instructions`, `model`, `effort`, `permission_mode`, `allowed_tools`, `lanes`, `context_budget`, `bare`, `verbose_output` |
+| `projects` | one codebase / product | `root_path`, `agents_dir`, `instructions`, `color`, `owner`, `members`, `context_budget`, `cli_profile` |
+| `agents` | an agent persona | `instructions`, `model`, `effort`, `permission_mode`, `allowed_tools`, `lanes`, `context_budget`, `bare`, `verbose_output`, `cli_profile` |
 | `channels` | a conversation | `lane`, `kind`, `agents[]` |
 | `messages` | transcript | `author_type`, `body`, `compressed`, `status`, `run_id`, `context_tokens` |
 | `context_chunks` | the memory agents read | `lane`, `kind`, `text`, `weight`, `pinned` |
@@ -460,7 +521,10 @@ Commands (call through `src/lib/bridge.ts`, never `invoke` directly):
 | `run_agent(request)` | spawn a turn; returns immediately |
 | `cancel_agent_run(runId)` | kill an in-flight turn |
 | `active_runs()` | `[runId, agentId]` currently executing |
-| `claude_doctor()` | CLI version, or an error string |
+| `claude_doctor()` | version of the default backend, or an error string |
+| `read_settings()` | key vault + merged CLI profiles + file path |
+| `write_settings(defaultProfile, keys, profiles)` | persist them |
+| `cli_doctor(profileId)` | is this backend on PATH, and are its keys set |
 | `compress_text(text)` | caveman compression |
 | `estimate_tokens(text)` | cheap token estimate |
 | `build_context_pack(chunks, budgetTokens)` | rank + compress + truncate |
@@ -476,16 +540,17 @@ Events:
 
 | Event | Payload |
 |---|---|
-| `agent://start` | `runId, agentId, channelId, sessionId, resumed, contextTokens` |
+| `agent://start` | `runId, agentId, channelId, sessionId, resumed, contextTokens, provider` |
 | `agent://delta` | `runId, text` — incremental assistant text |
 | `agent://chunk` | full parsed NDJSON line from the CLI |
-| `agent://end` | `exitCode, cancelled, text, stderr, sessionId` |
+| `agent://end` | `exitCode, cancelled, text, stderr, sessionId, provider` |
 | `pty://data`, `pty://exit` | terminal output / exit code |
 
-The prompt is piped over **stdin**, not argv, so long prompts never hit the
-Windows 32 KB command-line limit. The system prompt still goes through
-`--append-system-prompt`, which is why the context budget defaults to 3000
-tokens (~12 KB).
+The prompt is piped over **stdin** wherever the backend allows it, so long
+prompts never hit the Windows 32 KB command-line limit. On Claude Code the
+system prompt goes through `--append-system-prompt`; on a backend with no such
+flag the persona is folded into the message instead. Either way the context
+budget defaults to 3000 tokens (~12 KB).
 
 ---
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Box,
   Button,
@@ -17,9 +17,10 @@ import {
 } from "@mui/material";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { pb } from "../lib/pb";
+import { readSettings } from "../lib/bridge";
 import { useApp } from "../store";
 import { ink, fog } from "../theme";
-import type { Agent } from "../lib/types";
+import type { Agent, CliProfile } from "../lib/types";
 
 const MODELS = ["", "fable", "opus", "sonnet", "haiku"];
 const EFFORTS = ["", "low", "medium", "high", "xhigh", "max"];
@@ -55,6 +56,7 @@ export default function AgentEditor({
       disallowed_tools: [],
       add_dirs: [],
       context_budget: 3000,
+      cli_profile: "",
       enabled: true,
       bare: false,
       verbose_output: false,
@@ -63,6 +65,37 @@ export default function AgentEditor({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [profiles, setProfiles] = useState<CliProfile[]>([]);
+
+  // The backend list is machine-local, so it is read from the runner rather
+  // than from the project. On a device with no CLI it comes back empty and the
+  // picker falls back to whatever id is already stored.
+  useEffect(() => {
+    void readSettings().then((s) => setProfiles(s.profiles));
+  }, []);
+
+  /**
+   * The chosen backend, or `undefined` while the agent inherits one.
+   *
+   * Inheriting means the model picker keeps offering Claude names; picking a
+   * backend explicitly means those names are wrong for it, so the field turns
+   * into free text against that CLI's own catalogue.
+   */
+  const backend = profiles.find((p) => p.id === form.cli_profile);
+  const claudeShaped = !backend || backend.argv === "claude";
+
+  const unsupported = backend
+    ? (
+        [
+          [backend.supports.effort, "effort"],
+          [backend.supports.permissionMode, "permission mode"],
+          [backend.supports.tools, "tool allow/deny lists"],
+          [backend.supports.addDirs, "extra directories"],
+        ] as const
+      )
+        .filter(([on]) => !on)
+        .map(([, label]) => label)
+    : [];
 
   const set = <K extends keyof Agent>(key: K, value: Agent[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -176,21 +209,72 @@ export default function AgentEditor({
           placeholder="You own the Rust backend. Prefer small diffs. Never touch the UI."
         />
 
+        <FormControl size="small" fullWidth>
+          <InputLabel>CLI backend</InputLabel>
+          <Select
+            label="CLI backend"
+            value={
+              profiles.some((p) => p.id === form.cli_profile)
+                ? form.cli_profile
+                : ""
+            }
+            onChange={(e) => set("cli_profile", e.target.value)}
+          >
+            <MenuItem value="" sx={{ fontSize: 12 }}>
+              inherit from project
+            </MenuItem>
+            {profiles.map((p) => (
+              <MenuItem
+                key={p.id}
+                value={p.id}
+                disabled={!p.enabled}
+                sx={{ fontSize: 12 }}
+              >
+                {p.label}
+                {p.enabled ? "" : " (disabled)"}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        {unsupported.length > 0 && (
+          <Typography sx={{ fontSize: 10.5, color: fog[300], mt: -1.5 }}>
+            {backend?.label} has no {unsupported.join(", ")} — those settings
+            are dropped rather than passed. Its persona still arrives, folded
+            into the message when the CLI takes no system prompt.
+          </Typography>
+        )}
+
         <Stack direction="row" spacing={1.5}>
-          <FormControl size="small" fullWidth>
-            <InputLabel>Model</InputLabel>
-            <Select
+          {claudeShaped ? (
+            <FormControl size="small" fullWidth>
+              <InputLabel>Model</InputLabel>
+              <Select
+                label="Model"
+                value={form.model ?? ""}
+                onChange={(e) => set("model", e.target.value)}
+              >
+                {MODELS.map((m) => (
+                  <MenuItem key={m} value={m}>
+                    {m || "project default"}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          ) : (
+            <TextField
               label="Model"
+              size="small"
+              fullWidth
               value={form.model ?? ""}
               onChange={(e) => set("model", e.target.value)}
-            >
-              {MODELS.map((m) => (
-                <MenuItem key={m} value={m}>
-                  {m || "project default"}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+              placeholder={backend?.defaultModel || "backend default"}
+              helperText={`Named as ${backend?.label} names it`}
+              slotProps={{
+                input: { sx: { fontFamily: "var(--font-mono)", fontSize: 12 } },
+              }}
+            />
+          )}
 
           <FormControl size="small" fullWidth>
             <InputLabel>Effort</InputLabel>

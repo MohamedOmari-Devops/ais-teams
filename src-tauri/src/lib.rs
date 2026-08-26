@@ -12,6 +12,7 @@
 mod agentfiles;
 mod context;
 mod plugins;
+mod providers;
 mod runner;
 
 #[cfg(desktop)]
@@ -97,6 +98,9 @@ pub fn run() {
             plugins::plugin_update,
             plugins::marketplace_add,
             plugins::marketplace_remove,
+            providers::read_settings,
+            providers::write_settings,
+            providers::cli_doctor,
             runner::run_agent,
             runner::cancel_agent_run,
             runner::active_runs,
@@ -117,6 +121,8 @@ pub fn run() {
         default_context_budget,
         host_info,
         agentfiles::scan_agent_files,
+        providers::read_settings,
+        providers::write_settings,
     ]);
 
     builder
