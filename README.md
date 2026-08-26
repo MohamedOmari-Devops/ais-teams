@@ -23,6 +23,7 @@ nothing raw is ever sent to a model twice.
 - [WSL networking (important)](#wsl-networking-important)
 - [Connecting a phone](#connecting-a-phone)
 - [CLI backends and API keys](#cli-backends-and-api-keys)
+- [Showcase site](#showcase-site)
 - [Project layout](#project-layout)
 - [Data model](#data-model)
 - [Rust commands and events](#rust-commands-and-events)
@@ -360,6 +361,24 @@ rejected.
 
 ---
 
+## Showcase site
+
+`website/` is the marketing page for this app: plain HTML, CSS and JavaScript,
+no framework and no build step. Its palette is sampled from `src/assets/logo.png`
+— `#106BFB` on white with near-black text — and the hero "screenshot" is real
+markup styled to look like the app rather than an image, so it stays sharp and
+follows the design when it changes.
+
+```bash
+python -m http.server 4321 --directory website   # then http://localhost:4321
+node website/build.mjs                           # optional: one self-contained file
+```
+
+Deploy the folder anywhere static. See `website/README.md` for the tokens and
+how to add a section.
+
+---
+
 ## Project layout
 
 ```
@@ -399,6 +418,11 @@ ais-teams/
 │   │   └── context.rs            compressor + budgeting (+ unit tests)
 │   ├── capabilities/default.json permission set for the main window
 │   └── tauri.conf.json
+├── website/                      showcase site (static, no build step)
+│   ├── index.html                every section, top to bottom
+│   ├── styles.css                design tokens + layout
+│   ├── script.js                 theme toggle, tabs, copy, reveal
+│   └── build.mjs                 optional single-file bundle
 ├── pocketbase/
 │   ├── Dockerfile                pinned PocketBase image, non-root
 │   ├── docker-entrypoint.sh      fixes pb_data ownership, drops privileges

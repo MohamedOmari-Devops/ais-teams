@@ -88,13 +88,12 @@ export default function TitleBar({
         }}
       >
         <Box
+          component="img"
+          src="/logo.png"
+          alt=""
           data-tauri-drag-region
-          sx={{
-            width: 10,
-            height: 10,
-            borderRadius: "50%",
-            background: `linear-gradient(135deg, #7c5cff, #4aa8e0)`,
-          }}
+          draggable={false}
+          sx={{ width: 18, height: 18, borderRadius: "5px", display: "block" }}
         />
         <Box
           data-tauri-drag-region

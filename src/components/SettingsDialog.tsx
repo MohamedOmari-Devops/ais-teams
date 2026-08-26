@@ -31,7 +31,7 @@ import { ink, fog } from "../theme";
 import type { Agent, AgentFile, Project } from "../lib/types";
 
 const MODELS = ["fable", "opus", "sonnet", "haiku"];
-const COLORS = ["#7c5cff", "#3fbf7f", "#e0a44a", "#e2585f", "#4aa8e0", "#c86ee0"];
+const COLORS = ["#106bfb", "#3fbf7f", "#e0a44a", "#e2585f", "#4aa8e0", "#c86ee0"];
 
 const slugify = (value: string) =>
   value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");

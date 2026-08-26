@@ -1,0 +1,793 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AIS Teams — the multi-agent workspace for your codebase</title>
+    <meta
+      name="description"
+      content="Run a team of AI agents on one repository. Claude Code, Codex, OpenCode or Kimi — your CLI, your keys, your machine."
+    />
+    <meta name="theme-color" content="#106BFB" />
+    <link rel="icon" type="image/png" href="./assets/logo.png" />
+    <link rel="apple-touch-icon" href="./assets/logo.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="AIS Teams — the multi-agent workspace for your codebase" />
+    <meta
+      property="og:description"
+      content="Run a team of AI agents on one repository. Claude Code, Codex, OpenCode or Kimi — your CLI, your keys, your machine."
+    />
+    <meta property="og:image" content="./assets/logo.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+
+    <script>
+      // Stamp the saved theme before first paint, exactly as the desktop app
+      // does — otherwise a dark-mode visitor gets a white flash on every load.
+      (function () {
+        try {
+          var m = localStorage.getItem("ais.site.theme");
+          if (m !== "light" && m !== "dark") {
+            m = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          }
+          document.documentElement.dataset.theme = m;
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <!-- ================================================================ nav -->
+    <header class="nav" id="nav">
+      <div class="wrap nav__inner">
+        <a class="brand" href="#top" aria-label="AIS Teams home">
+          <span class="brand__mark" aria-hidden="true"></span>
+          <span class="brand__word">AIS&nbsp;Teams</span>
+        </a>
+
+        <nav class="nav__links" aria-label="Primary">
+          <a href="#product">Product</a>
+          <a href="#backends">Backends</a>
+          <a href="#context">Context</a>
+          <a href="#architecture">Architecture</a>
+          <a href="#docs">Docs</a>
+        </nav>
+
+        <div class="nav__actions">
+          <button class="icon-btn" id="theme" type="button" aria-label="Toggle theme">
+            <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="4.2" />
+              <path d="M12 2v2.6M12 19.4V22M2 12h2.6M19.4 12H22M4.9 4.9l1.9 1.9M17.2 17.2l1.9 1.9M19.1 4.9l-1.9 1.9M6.8 17.2l-1.9 1.9" />
+            </svg>
+            <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20 14.2A8.2 8.2 0 1 1 9.8 4a6.6 6.6 0 0 0 10.2 10.2Z" />
+            </svg>
+          </button>
+
+          <a class="ghost-btn" href="#docs">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="i-github">
+              <path
+                d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.35 1.09 2.92.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.03a9.5 9.5 0 0 1 5 0c1.91-1.3 2.75-1.03 2.75-1.03.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"
+              />
+            </svg>
+            <span>Star on GitHub</span>
+            <span class="pill">1.2k</span>
+          </a>
+
+          <a class="btn btn--primary" href="#get-started">Start building</a>
+
+          <button class="icon-btn nav__burger" id="burger" type="button" aria-label="Menu" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="nav__drawer" id="drawer" hidden>
+        <a href="#product">Product</a>
+        <a href="#backends">Backends</a>
+        <a href="#context">Context</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#docs">Docs</a>
+        <a class="btn btn--primary" href="#get-started">Start building</a>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- ============================================================= hero -->
+      <section class="hero" id="top">
+        <div class="hero__glow" aria-hidden="true"></div>
+        <div class="wrap">
+          <a class="eyebrow-badge reveal" href="#backends">
+            <span class="dot"></span>
+            Now runs Codex, OpenCode and Kimi
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+          </a>
+
+          <h1 class="hero__title reveal">
+            The multi-agent workspace<br />
+            for your&nbsp;codebase
+          </h1>
+
+          <p class="hero__sub reveal">
+            Give a repository a team, not a chat window. Agents with their own personas,
+            channels, memory lanes and permissions — running on the CLI you already
+            have, on your machine, against your keys.
+          </p>
+
+          <div class="hero__cta reveal">
+            <a class="btn btn--primary btn--lg" href="#get-started">Start building</a>
+            <a class="btn btn--outline btn--lg" href="#product">See how it works</a>
+          </div>
+
+          <div class="snippet reveal" data-copy="pnpm install &amp;&amp; pnpm app:dev">
+            <span class="snippet__prompt">$</span>
+            <code>pnpm install &amp;&amp; pnpm app:dev</code>
+            <button class="snippet__copy" type="button" aria-label="Copy command">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="9" y="9" width="11" height="11" rx="2.2" />
+                <path d="M15 5.5A2.5 2.5 0 0 0 12.5 3h-6A3.5 3.5 0 0 0 3 6.5v6A2.5 2.5 0 0 0 5.5 15" />
+              </svg>
+              <span>Copy</span>
+            </button>
+          </div>
+
+          <!-- ------------------------------------------- product visual -->
+          <div class="shot reveal" role="img" aria-label="The AIS Teams desktop app: sidebar with channels and agents, a chat transcript, and a context meter.">
+            <div class="shot__frame">
+              <div class="shot__bar">
+                <span class="tl tl--r"></span><span class="tl tl--y"></span><span class="tl tl--g"></span>
+                <span class="shot__logo" aria-hidden="true"></span>
+                <span class="shot__title">AIS Teams</span>
+                <span class="shot__crumb">payments-rewrite · #backend</span>
+                <span class="shot__runner"><i></i>runner ready · Claude Code</span>
+              </div>
+
+              <div class="shot__body">
+                <aside class="shot__side">
+                  <div class="s-label">Projects</div>
+                  <div class="s-row s-row--on"><i style="background:#106BFB"></i>payments-rewrite</div>
+                  <div class="s-row"><i style="background:#3fbf7f"></i>infra-migration</div>
+
+                  <div class="s-label">Channels</div>
+                  <div class="s-row s-row--on">#backend</div>
+                  <div class="s-row">#review</div>
+                  <div class="s-row">#standup</div>
+
+                  <div class="s-label">Agents</div>
+                  <div class="s-row"><b class="av av--b">B</b>backend <em>opus</em></div>
+                  <div class="s-row"><b class="av av--g">R</b>reviewer <em>sonnet</em></div>
+                  <div class="s-row"><b class="av av--o">D</b>docs <em>haiku</em></div>
+                </aside>
+
+                <div class="shot__chat">
+                  <div class="msg msg--you">
+                    <span class="who">you</span>
+                    <p>@backend the webhook retries twice on a 500. Find it and fix it.</p>
+                  </div>
+
+                  <div class="msg">
+                    <span class="who who--b">backend<em>· Claude Code · opus</em></span>
+                    <p>
+                      Cause: <code>retry()</code> wrapped by the outer queue retry.
+                      <code>src/webhooks/deliver.ts:88</code> — inner loop counts attempts
+                      from 0, outer from 1.
+                    </p>
+                    <pre><span class="del">- for (let i = 0; i &lt;= max; i++) {</span>
+<span class="add">+ for (let i = 1; i &lt;= max; i++) {</span></pre>
+                    <p class="facts"><b>FACTS:</b> retry budget lives in the queue, not the handler.</p>
+                  </div>
+
+                  <div class="msg msg--live">
+                    <span class="who who--g">reviewer<em>· Codex · gpt-5-codex</em></span>
+                    <p>Diff is minimal. Add a test for the boundary case<span class="caret"></span></p>
+                  </div>
+
+                  <div class="shot__composer">
+                    <span>Message #backend — @mention one agent, or let the room answer</span>
+                    <span class="send">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+                    </span>
+                  </div>
+                </div>
+
+                <aside class="shot__meta">
+                  <div class="s-label">This turn</div>
+                  <div class="meter"><span style="width:34%"></span></div>
+                  <div class="meta-row"><span>context</span><b>1,024 / 3,000</b></div>
+                  <div class="meta-row"><span>lane</span><b>backend</b></div>
+                  <div class="meta-row"><span>mode</span><b>acceptEdits</b></div>
+                  <div class="s-label">Backend</div>
+                  <div class="chipset">
+                    <span class="chip chip--on">Claude Code</span>
+                    <span class="chip">Codex</span>
+                    <span class="chip">OpenCode</span>
+                    <span class="chip">Kimi</span>
+                  </div>
+                </aside>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================= logo strip -->
+      <section class="strip">
+        <div class="wrap">
+          <p class="strip__label">Runs on the CLI you already have</p>
+          <div class="strip__row">
+            <span class="mark">Claude&nbsp;Code</span>
+            <span class="mark">Codex&nbsp;CLI</span>
+            <span class="mark">OpenCode</span>
+            <span class="mark">Kimi&nbsp;CLI</span>
+            <span class="mark">Moonshot</span>
+            <span class="mark">Anthropic</span>
+            <span class="mark">OpenAI</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================== product -->
+      <section class="section" id="product">
+        <div class="wrap">
+          <p class="eyebrow">Product</p>
+          <h2 class="h2">Five moving parts, one window</h2>
+          <p class="lede">
+            Everything an agent needs to be useful more than once: an identity, a room to
+            work in, a memory that fits in a budget, a CLI to run on, and a real terminal
+            when you want to drive it yourself.
+          </p>
+
+          <div class="tabs" id="tabs">
+            <div class="tabs__rail" role="tablist" aria-label="Product areas">
+              <button class="tab is-on" role="tab" aria-selected="true" data-tab="agents">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4" /><path d="M4.6 20a7.4 7.4 0 0 1 14.8 0" /></svg>
+                <b>Agents</b><em>Personas that map to real CLI flags</em>
+              </button>
+              <button class="tab" role="tab" aria-selected="false" data-tab="channels">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H8l-4 3.5Z" /></svg>
+                <b>Channels</b><em>Rooms with their own memory lane</em>
+              </button>
+              <button class="tab" role="tab" aria-selected="false" data-tab="context">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h11M4 17h7" /></svg>
+                <b>Context</b><em>Compressed, ranked, budgeted</em>
+              </button>
+              <button class="tab" role="tab" aria-selected="false" data-tab="cli">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z" /><path d="M7.5 9.5l3 2.5-3 2.5M13 15h4" /></svg>
+                <b>Backends</b><em>Any CLI, your keys</em>
+              </button>
+              <button class="tab" role="tab" aria-selected="false" data-tab="terminal">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9.5l2.5 2.5L7 14.5" /></svg>
+                <b>Terminal</b><em>The real TUI, in a pane</em>
+              </button>
+            </div>
+
+            <div class="tabs__stage">
+              <!-- agents -->
+              <div class="panel is-on" data-panel="agents">
+                <div class="panel__copy">
+                  <h3>An agent is a profile, not a prompt</h3>
+                  <p>
+                    Name, role, standing instructions, model, effort, permission mode,
+                    tool allow and deny lists, extra directories, context budget. Every
+                    field lands on a real flag when the turn is spawned — nothing is
+                    decorative.
+                  </p>
+                  <ul class="ticks">
+                    <li>Import a whole team from a folder of <code>.md</code> files</li>
+                    <li>Per-agent memory lanes beyond the channel's own</li>
+                    <li>A persona edit starts a fresh session instead of silently rotting</li>
+                  </ul>
+                </div>
+                <div class="panel__art">
+                  <div class="card-art">
+                    <div class="ca-head"><b class="av av--b">B</b><span>backend</span><em>owns the API and migrations</em></div>
+                    <div class="ca-grid">
+                      <div><span>model</span><b>opus</b></div>
+                      <div><span>effort</span><b>high</b></div>
+                      <div><span>permission</span><b>acceptEdits</b></div>
+                      <div><span>budget</span><b>3,000</b></div>
+                      <div><span>allow</span><b>Read, Edit, Bash(git *)</b></div>
+                      <div><span>deny</span><b>WebFetch</b></div>
+                    </div>
+                    <pre class="ca-code">claude -p --model opus --effort high \
+  --permission-mode acceptEdits \
+  --allowed-tools Read,Edit,"Bash(git *)"</pre>
+                  </div>
+                </div>
+              </div>
+
+              <!-- channels -->
+              <div class="panel" data-panel="channels">
+                <div class="panel__copy">
+                  <h3>Rooms decide who answers</h3>
+                  <p>
+                    A channel has a topic, a roster and a lane. Post once and every agent
+                    on the roster replies; write <code>@reviewer</code> and only they do.
+                    What is said in a room is remembered in that room's lane.
+                  </p>
+                  <ul class="ticks">
+                    <li>Chat, standup, review and terminal kinds</li>
+                    <li>Broadcast to the room or mention one agent</li>
+                    <li>Same transcript on desktop and phone, live</li>
+                  </ul>
+                </div>
+                <div class="panel__art">
+                  <div class="card-art">
+                    <div class="ca-rooms">
+                      <div class="room room--on"># backend<span>lane: backend</span><i>3 agents</i></div>
+                      <div class="room"># review<span>lane: review</span><i>2 agents</i></div>
+                      <div class="room"># standup<span>lane: shared</span><i>4 agents</i></div>
+                    </div>
+                    <div class="ca-fan">
+                      <span class="fan-src">one message</span>
+                      <span class="fan-arm"></span>
+                      <div class="fan-outs"><b class="av av--b">B</b><b class="av av--g">R</b><b class="av av--o">D</b></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- context -->
+              <div class="panel" data-panel="context">
+                <div class="panel__copy">
+                  <h3>Memory that fits in a budget</h3>
+                  <p>
+                    Every turn ends with a <code>FACTS:</code> block. Those become
+                    high-weight chunks; the reply itself becomes a low-weight one. Before
+                    the next turn they are ranked, compressed and truncated to the
+                    project's token budget — so a long project does not mean a long bill.
+                  </p>
+                  <ul class="ticks">
+                    <li>Lanes keep unrelated work out of each other's context</li>
+                    <li>Pinned chunks survive compaction</li>
+                    <li>The pack rides on the message, so it survives a resume</li>
+                  </ul>
+                </div>
+                <div class="panel__art">
+                  <div class="card-art">
+                    <pre class="ca-code ca-code--tall">## PROJECT payments-rewrite
+Objective: replace the legacy webhook path.
+Conventional commits. Tests before merge.
+
+## CHANNEL #backend (lane: backend)
+
+## PROJECT CONTEXT (compressed)
+[backend|decision] retry budget lives in queue
+[backend|decision] webhook ids are idempotency keys
+[backend|file]     src/webhooks/deliver.ts owns delivery
+[shared|goal]      cut p95 delivery to &lt; 400ms</pre>
+                    <div class="meter meter--wide"><span style="width:34%"></span></div>
+                    <div class="meta-row"><span>packed</span><b>1,024 tokens · 12 kept · 41 dropped</b></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- backends -->
+              <div class="panel" data-panel="cli">
+                <div class="panel__copy">
+                  <h3>Your CLI, your keys, your machine</h3>
+                  <p>
+                    A turn is one process. Which binary that is, how its argv is laid out,
+                    how its output is read and which key it gets are all one setting — so
+                    swapping Claude Code for Codex is a dropdown, not a fork.
+                  </p>
+                  <ul class="ticks">
+                    <li>Five backends built in, plus your own argv template</li>
+                    <li>Keys stay in one local file, injected as env — never argv</li>
+                    <li>Flags a CLI does not have are dropped, not passed and rejected</li>
+                  </ul>
+                </div>
+                <div class="panel__art">
+                  <div class="card-art">
+                    <div class="ca-head ca-head--plain"><span>Settings</span><em>Global · CLI backends</em></div>
+                    <div class="ca-list">
+                      <div class="cli-row cli-row--on"><b>Claude Code</b><code>claude</code><span class="tag tag--ok">default</span></div>
+                      <div class="cli-row"><b>Codex CLI (ChatGPT)</b><code>codex</code><span class="tag">openai</span></div>
+                      <div class="cli-row"><b>OpenCode</b><code>opencode</code><span class="tag">multi</span></div>
+                      <div class="cli-row"><b>Kimi CLI</b><code>kimi</code><span class="tag">moonshot</span></div>
+                      <div class="cli-row"><b>Kimi via Claude Code</b><code>claude</code><span class="tag">moonshot</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- terminal -->
+              <div class="panel" data-panel="terminal">
+                <div class="panel__copy">
+                  <h3>And when you want the real thing</h3>
+                  <p>
+                    A PTY pane runs the actual CLI inside the app: prompts, permission
+                    dialogs and the status line behave exactly as they do in a shell. The
+                    architect can hand it a setup script and you watch it run.
+                  </p>
+                  <ul class="ticks">
+                    <li>Real pseudo-terminal, not a fake console</li>
+                    <li>Opens in the project's working folder</li>
+                    <li>Desktop only — phones drive agents through the queue</li>
+                  </ul>
+                </div>
+                <div class="panel__art">
+                  <div class="card-art">
+                    <pre class="ca-term">$ claude
+<span class="dim">╭──────────────────────────────────────────╮</span>
+<span class="dim">│</span> <span class="blue">✻</span> Welcome to Claude Code                <span class="dim">│</span>
+<span class="dim">╰──────────────────────────────────────────╯</span>
+
+<span class="blue">&gt;</span> run the migration and show me the diff
+
+<span class="dim">● Bash</span>(pnpm pb:up)
+  <span class="dim">└─ applied 1756000500_cli_profile.js</span>
+<span class="blue">▍</span></pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================== capabilities -->
+      <section class="section section--tint">
+        <div class="wrap">
+          <p class="eyebrow">Capabilities</p>
+          <h2 class="h2">Put a whole team on one repository</h2>
+          <p class="lede">
+            The parts that make several agents usable at once, rather than several chat
+            windows you have to keep in your head.
+          </p>
+
+          <div class="grid grid--3">
+            <article class="card reveal">
+              <div class="card__icon"><svg viewBox="0 0 24 24"><path d="M12 3l7.5 4.2v9.6L12 21l-7.5-4.2V7.2Z" /><path d="M12 12l7.5-4.2M12 12v9M12 12L4.5 7.8" /></svg></div>
+              <h3>Fan-out turns</h3>
+              <p>One message reaches every agent in the room, or exactly the one you named. Each answer is its own process, its own budget, its own permissions.</p>
+            </article>
+
+            <article class="card reveal">
+              <div class="card__icon"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h9" /><circle cx="19" cy="18" r="2" /></svg></div>
+              <h3>Context lanes</h3>
+              <p>Memory is partitioned by lane, so the infra thread never bleeds into the auth thread. An agent may read past its own lane only when you say so.</p>
+            </article>
+
+            <article class="card reveal">
+              <div class="card__icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="M8 9h8M8 13h5" /></svg></div>
+              <h3>The architect</h3>
+              <p>Describe the outcome; a master agent proposes the team, the channels and the briefs, then applies them in one step. Edit anything it guessed wrong.</p>
+            </article>
+
+            <article class="card reveal">
+              <div class="card__icon"><svg viewBox="0 0 24 24"><path d="M12 3v18M5 8l7-5 7 5v8l-7 5-7-5Z" /></svg></div>
+              <h3>Plugin catalogue</h3>
+              <p>Browse, install and enable Claude Code plugins and marketplaces from inside the app. The same ones a plain <code>claude</code> session sees.</p>
+            </article>
+
+            <article class="card reveal">
+              <div class="card__icon"><svg viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="2.6" /><path d="M11 18.5h2" /></svg></div>
+              <h3>Phone as a remote</h3>
+              <p>No CLI on a phone. It writes a queued run instead, and the desktop that does have one claims it and executes. Same transcript, same data.</p>
+            </article>
+
+            <article class="card reveal">
+              <div class="card__icon"><svg viewBox="0 0 24 24"><path d="M12 3a4 4 0 0 1 4 4v3H8V7a4 4 0 0 1 4-4Z" /><rect x="5" y="10" width="14" height="10" rx="2.4" /></svg></div>
+              <h3>Keys that stay put</h3>
+              <p>API keys live in one file on the machine that spawns the processes — never in the database, never in argv, never on a teammate's laptop.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= backends -->
+      <section class="section" id="backends">
+        <div class="wrap">
+          <p class="eyebrow">Backends</p>
+          <h2 class="h2">Bring your own CLI</h2>
+          <p class="lede">
+            Five profiles ship with the app. Each one describes a binary, an argv layout,
+            an output parser and the key it needs — override any field, or add a CLI
+            nobody has heard of yet.
+          </p>
+
+          <div class="table reveal">
+            <div class="table__head">
+              <span>Backend</span><span>Binary</span><span>Output</span><span>Key</span><span>Notes</span>
+            </div>
+            <div class="table__row">
+              <span class="t-name"><b class="bdot bdot--blue"></b>Claude Code</span>
+              <span><code>claude</code></span><span>stream-json</span><span><em>anthropic</em> · optional</span>
+              <span>Resume, permission modes, effort, tool lists.</span>
+            </div>
+            <div class="table__row">
+              <span class="t-name"><b class="bdot bdot--green"></b>Codex CLI</span>
+              <span><code>codex</code></span><span>JSON lines</span><span><em>openai</em> · optional</span>
+              <span>Persona folds into the message; sandbox flags map from permission mode.</span>
+            </div>
+            <div class="table__row">
+              <span class="t-name"><b class="bdot bdot--amber"></b>OpenCode</span>
+              <span><code>opencode</code></span><span>plain text</span><span>any of the three</span>
+              <span>Model is <code>provider/model</code>, so one binary reaches every vendor.</span>
+            </div>
+            <div class="table__row">
+              <span class="t-name"><b class="bdot bdot--violet"></b>Kimi CLI</span>
+              <span><code>kimi</code></span><span>plain text</span><span><em>moonshot</em></span>
+              <span>Argv is a template — edit it if your build names the flag differently.</span>
+            </div>
+            <div class="table__row">
+              <span class="t-name"><b class="bdot bdot--blue"></b>Kimi via Claude Code</span>
+              <span><code>claude</code></span><span>stream-json</span><span><em>moonshot</em></span>
+              <span>Claude Code pointed at Moonshot's Anthropic-compatible endpoint.</span>
+            </div>
+          </div>
+
+          <div class="split">
+            <div class="split__copy">
+              <h3>Keys are handed over, not stored around</h3>
+              <p>
+                One JSON file on the machine that runs the agents, <code>0600</code> where
+                the OS allows it. Nothing is written to the database: a key synced through
+                a shared project would be readable by everyone in it, and a binary path is
+                meaningless on anyone else's machine.
+              </p>
+              <p>
+                A variable whose key is blank is left <strong>unset</strong> rather than
+                set empty — so a CLI you signed into interactively keeps using its own
+                credentials instead of being handed nothing.
+              </p>
+              <a class="link-arrow" href="#docs">Read the settings reference
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+              </a>
+            </div>
+            <div class="split__art">
+              <div class="card-art">
+                <div class="ca-head ca-head--plain"><span>settings.json</span><em>local · never synced</em></div>
+                <pre class="ca-code">{
+  "defaultProfile": "claude",
+  "keys": {
+    "anthropic": "sk-ant-••••••••••••",
+    "openai":    "sk-••••••••••••••••",
+    "moonshot":  "sk-••••••••••••••••"
+  }
+}</pre>
+                <div class="ca-note">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a4 4 0 0 1 4 4v3H8V7a4 4 0 0 1 4-4Z" /><rect x="5" y="10" width="14" height="10" rx="2.4" /></svg>
+                  Injected as environment variables on the child process — argv is
+                  readable by every other process on the box.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================== context -->
+      <section class="section section--dark" id="context">
+        <div class="wrap">
+          <p class="eyebrow eyebrow--on-dark">Context engine</p>
+          <h2 class="h2">Turns that stay cheap on turn two hundred</h2>
+          <p class="lede lede--on-dark">
+            The constraint that shapes the whole app: a team of agents on a long project
+            will re-read the same history forever unless something stops them. Two rules
+            do the stopping.
+          </p>
+
+          <div class="grid grid--2">
+            <div class="dark-card reveal">
+              <span class="num">01</span>
+              <h3>Answers are compressed by contract</h3>
+              <p>
+                Every persona carries an output contract: drop articles and filler, keep
+                every path, identifier and number exact, never touch code or error strings.
+                Short answers cost less to produce and less to remember.
+              </p>
+              <pre class="dark-code">OUTPUT CONTRACT (strict):
+- Fragments allowed. Terms, paths, numbers exact.
+- Code blocks and errors: verbatim.
+- Max 12 lines unless emitting code.
+- End with FACTS: 1-3 durable facts.</pre>
+            </div>
+
+            <div class="dark-card reveal">
+              <span class="num">02</span>
+              <h3>Only the durable half is kept warm</h3>
+              <p>
+                The reply becomes low-weight memory. The <code>FACTS:</code> block becomes
+                high-weight memory. Next turn, chunks are ranked by weight and recency,
+                compressed, and cut to the budget — the pack stays the same size whether
+                the project is a day or a year old.
+              </p>
+              <pre class="dark-code">pack(lanes, budget) -> 1,024 tokens
+  kept    12 chunks   (weight × recency)
+  dropped 41 chunks
+  rides on the message, so --resume keeps it</pre>
+            </div>
+          </div>
+
+          <div class="stats">
+            <div><b>3,000</b><span>default tokens of memory per turn</span></div>
+            <div><b>1</b><span>process per turn, cancellable mid-flight</span></div>
+            <div><b>0</b><span>keys or secrets written to the database</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================== architecture -->
+      <section class="section" id="architecture">
+        <div class="wrap">
+          <p class="eyebrow">Architecture</p>
+          <h2 class="h2">Three pieces, one source of truth</h2>
+          <p class="lede">
+            The desktop app spawns processes. PocketBase holds the data. The frontend owns
+            every write — which is why a phone with no CLI sees exactly what the desktop
+            sees.
+          </p>
+
+          <div class="grid grid--3">
+            <article class="card card--arch reveal">
+              <span class="card__step">Desktop</span>
+              <h3>Tauri + Rust</h3>
+              <p>
+                Spawns the CLI, streams stdout back to the webview as it arrives, compresses
+                and budgets context, and runs a real PTY when you want the TUI. It writes
+                nothing to the database.
+              </p>
+              <ul class="ticks ticks--sm">
+                <li>Headless turns and interactive sessions</li>
+                <li>Cancellable runs, per-run registry</li>
+                <li>Windows console never flashes</li>
+              </ul>
+            </article>
+
+            <article class="card card--arch reveal">
+              <span class="card__step">Data</span>
+              <h3>PocketBase</h3>
+              <p>
+                Projects, agents, channels, messages, context chunks, goals, sessions and
+                runs. Realtime subscriptions push every change to every device, with a slow
+                poll behind them for when a stream quietly stalls.
+              </p>
+              <ul class="ticks ticks--sm">
+                <li>Nine collections, migrations in the repo</li>
+                <li>Runs as a queue for devices without a CLI</li>
+                <li>Docker image pinned and non-root</li>
+              </ul>
+            </article>
+
+            <article class="card card--arch reveal">
+              <span class="card__step">Client</span>
+              <h3>React + MUI</h3>
+              <p>
+                One codebase for desktop and phone. Light and dark, a frameless window with
+                its own chrome, and a settings panel that puts project data and machine-local
+                keys side by side without mixing them up.
+              </p>
+              <ul class="ticks ticks--sm">
+                <li>Optimistic writes, no round-trip to see your own message</li>
+                <li>Streaming drafts flushed on a timer, not per token</li>
+                <li>Theme stamped before first paint</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================= principles -->
+      <section class="section section--tint">
+        <div class="wrap">
+          <p class="eyebrow">Principles</p>
+          <h2 class="h2">Opinions this thing is built on</h2>
+
+          <div class="quotes">
+            <blockquote class="reveal">
+              <p>An agent that cannot be configured is a demo. Every field in the agent editor lands on a real flag.</p>
+              <cite>Agent model</cite>
+            </blockquote>
+            <blockquote class="reveal">
+              <p>Context is the bill. Compress by contract, keep the durable half, and cap what a single turn may spend.</p>
+              <cite>Context engine</cite>
+            </blockquote>
+            <blockquote class="reveal">
+              <p>Secrets belong on the machine that spends them, in the environment of the process that needs them.</p>
+              <cite>Key vault</cite>
+            </blockquote>
+            <blockquote class="reveal">
+              <p>The vendor is a setting. Nothing about a team of agents should depend on who ships the CLI.</p>
+              <cite>Backends</cite>
+            </blockquote>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================== cta -->
+      <section class="cta" id="get-started">
+        <div class="wrap cta__inner">
+          <span class="cta__logo" aria-hidden="true"></span>
+          <h2>Ready to put a team on your repo?</h2>
+          <p>Open source. Runs on your machine, against your keys, with the CLI you already pay for.</p>
+          <div class="cta__buttons">
+            <a class="btn btn--invert btn--lg" href="#docs">Start building</a>
+            <a class="btn btn--onblue btn--lg" href="#docs">Read the docs</a>
+          </div>
+          <div class="snippet snippet--dark" data-copy="git clone https://github.com/your-org/ais-teams">
+            <span class="snippet__prompt">$</span>
+            <code>git clone https://github.com/your-org/ais-teams</code>
+            <button class="snippet__copy" type="button" aria-label="Copy command">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="9" y="9" width="11" height="11" rx="2.2" />
+                <path d="M15 5.5A2.5 2.5 0 0 0 12.5 3h-6A3.5 3.5 0 0 0 3 6.5v6A2.5 2.5 0 0 0 5.5 15" />
+              </svg>
+              <span>Copy</span>
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ============================================================= footer -->
+    <footer class="foot" id="docs">
+      <div class="wrap foot__grid">
+        <div class="foot__brand">
+          <a class="brand" href="#top">
+            <span class="brand__mark" aria-hidden="true"></span>
+            <span class="brand__word">AIS&nbsp;Teams</span>
+          </a>
+          <p>The multi-agent workspace for your codebase. Desktop-first, key-safe, CLI-agnostic.</p>
+          <div class="foot__social">
+            <a href="#docs" aria-label="GitHub">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.35 1.09 2.92.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.03a9.5 9.5 0 0 1 5 0c1.91-1.3 2.75-1.03 2.75-1.03.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z" /></svg>
+            </a>
+          </div>
+        </div>
+
+        <div class="foot__col">
+          <h4>Product</h4>
+          <a href="#product">Agents</a>
+          <a href="#product">Channels</a>
+          <a href="#context">Context engine</a>
+          <a href="#product">Terminal</a>
+          <a href="#product">Architect</a>
+        </div>
+
+        <div class="foot__col">
+          <h4>Backends</h4>
+          <a href="#backends">Claude Code</a>
+          <a href="#backends">Codex CLI</a>
+          <a href="#backends">OpenCode</a>
+          <a href="#backends">Kimi CLI</a>
+          <a href="#backends">Custom argv</a>
+        </div>
+
+        <div class="foot__col">
+          <h4>Developers</h4>
+          <a href="#docs">Quickstart</a>
+          <a href="#docs">Data model</a>
+          <a href="#docs">Rust commands</a>
+          <a href="#docs">Migrations</a>
+          <a href="#docs">Troubleshooting</a>
+        </div>
+
+        <div class="foot__col">
+          <h4>Project</h4>
+          <a href="#docs">Roadmap</a>
+          <a href="#docs">Security notes</a>
+          <a href="#docs">Licence</a>
+          <a href="#docs">Changelog</a>
+        </div>
+      </div>
+
+      <div class="wrap foot__base">
+        <span>© <span id="year">2026</span> AIS Teams</span>
+        <span>Built with Tauri, React and PocketBase.</span>
+      </div>
+    </footer>
+
+    <script src="./script.js"></script>
+  </body>
+</html>

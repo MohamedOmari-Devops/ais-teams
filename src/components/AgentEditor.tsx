@@ -25,7 +25,7 @@ import type { Agent, CliProfile } from "../lib/types";
 const MODELS = ["", "fable", "opus", "sonnet", "haiku"];
 const EFFORTS = ["", "low", "medium", "high", "xhigh", "max"];
 const MODES = ["", "manual", "acceptEdits", "auto", "plan", "bypassPermissions"];
-const COLORS = ["#7c5cff", "#3fbf7f", "#e0a44a", "#e2585f", "#4aa8e0", "#c86ee0"];
+const COLORS = ["#106bfb", "#3fbf7f", "#e0a44a", "#e2585f", "#4aa8e0", "#c86ee0"];
 
 /**
  * Per-agent profile.
