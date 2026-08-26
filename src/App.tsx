@@ -26,7 +26,7 @@ export default function App() {
   );
   // Which settings section the panel opens on, so the runner status line can
   // land on the backend that is failing rather than on the project's name.
-  const [settingsSection, setSettingsSection] = useState<SectionId>("general");
+  const [settingsSection, setSettingsSection] = useState<SectionId>("identity");
   const [showPlugins, setShowPlugins] = useState(false);
   const [showArchitect, setShowArchitect] = useState(false);
   // Setup commands the architect handed over, consumed once by the terminal.
@@ -225,7 +225,7 @@ export default function App() {
         onOpenSettings={
           project
             ? () => {
-                setSettingsSection("general");
+                setSettingsSection("identity");
                 setProjectPanel(project);
               }
             : undefined
