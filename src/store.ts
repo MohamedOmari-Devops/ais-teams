@@ -19,8 +19,12 @@ interface AppState {
   agents: Agent[];
   messages: Message[];
   drafts: Record<string, Draft>;
+  /** This device can spawn CLI processes at all (desktop, not phone/browser). */
   hostCanRun: boolean;
-  claudeVersion: string;
+  /** The backend that runs turns here, e.g. "OpenCode · 1.18.30". */
+  runnerLabel: string;
+  /** Why that backend cannot run, when it cannot. Empty when it is healthy. */
+  runnerError: string;
 
   setProject: (p: Project | null) => void;
   setChannel: (c: Channel | null) => void;
@@ -29,7 +33,7 @@ interface AppState {
   setMessages: (m: Message[]) => void;
   upsertMessage: (m: Message) => void;
   removeMessage: (id: string) => void;
-  setHost: (canRun: boolean, version: string) => void;
+  setHost: (canRun: boolean, label: string, error: string) => void;
 
   startDraft: (d: Draft) => void;
   appendDraft: (runId: string, text: string) => void;
@@ -44,7 +48,8 @@ export const useApp = create<AppState>((set) => ({
   messages: [],
   drafts: {},
   hostCanRun: false,
-  claudeVersion: "",
+  runnerLabel: "",
+  runnerError: "",
 
   setProject: (project) => set({ project }),
   setChannel: (channel) => set({ channel }),
@@ -64,7 +69,8 @@ export const useApp = create<AppState>((set) => ({
   removeMessage: (id) =>
     set((state) => ({ messages: state.messages.filter((m) => m.id !== id) })),
 
-  setHost: (hostCanRun, claudeVersion) => set({ hostCanRun, claudeVersion }),
+  setHost: (hostCanRun, runnerLabel, runnerError) =>
+    set({ hostCanRun, runnerLabel, runnerError }),
 
   startDraft: (draft) =>
     set((state) => ({ drafts: { ...state.drafts, [draft.runId]: draft } })),

@@ -166,6 +166,128 @@ fn env(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
         .collect()
 }
 
+/// What to actually hand `CreateProcess` for a profile's `bin`.
+///
+/// A shell resolves a bare name against `PATHEXT`; `CreateProcess` does not —
+/// it only ever appends `.exe`. Every npm-installed CLI lands on PATH as a
+/// `.cmd` shim, so `opencode` fails to spawn as "program not found" while
+/// `where opencode` happily prints it.
+///
+/// Once the shim is found it is unwrapped onto the executable it calls.
+/// Running the `.cmd` itself would route argv through `cmd.exe`, which caps
+/// the command line near 8191 bytes and cannot carry a newline at all — and a
+/// turn's prompt is full of both.
+#[cfg(windows)]
+pub fn program(bin: &str) -> String {
+    let raw = std::path::Path::new(bin);
+
+    // Anything with a directory in it is already a location, not a lookup.
+    if raw.components().count() > 1 {
+        return unwrap_shim(raw.to_path_buf());
+    }
+
+    let exts = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into());
+    let exts: Vec<String> = exts
+        .split(';')
+        .map(|e| e.trim().to_string())
+        .filter(|e| e.starts_with('.'))
+        .collect();
+
+    let path = match std::env::var_os("PATH") {
+        Some(p) => p,
+        None => return bin.to_string(),
+    };
+
+    for dir in std::env::split_paths(&path) {
+        // A name that already carries its own extension is taken literally;
+        // otherwise `opencode` would match the extensionless shell script npm
+        // drops next to the shim, which Windows cannot execute.
+        if raw.extension().is_some() {
+            let exact = dir.join(bin);
+            if exact.is_file() {
+                return unwrap_shim(exact);
+            }
+            continue;
+        }
+        for ext in &exts {
+            let candidate = dir.join(format!("{bin}{ext}"));
+            if candidate.is_file() {
+                return unwrap_shim(candidate);
+            }
+        }
+    }
+
+    // Nothing on PATH: hand back the name so the spawn error names what the
+    // profile actually asked for.
+    bin.to_string()
+}
+
+/// Follow an npm `.cmd` shim to the executable it launches.
+///
+/// The shim is a four-line batch file whose only interesting content is one
+/// quoted path ending in `.exe`, relative to the shim's own directory.
+#[cfg(windows)]
+fn unwrap_shim(path: std::path::PathBuf) -> String {
+    let literal = |p: &std::path::Path| p.to_string_lossy().into_owned();
+
+    let batch = path
+        .extension()
+        .map(|e| {
+            let e = e.to_string_lossy().to_ascii_lowercase();
+            e == "cmd" || e == "bat"
+        })
+        .unwrap_or(false);
+    if !batch {
+        return literal(&path);
+    }
+
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return literal(&path);
+    };
+    let dir = path
+        .parent()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default();
+
+    // Odd-indexed fields of a split on `"` are exactly the quoted tokens.
+    for token in text.split('"').skip(1).step_by(2) {
+        if !token.to_ascii_lowercase().ends_with(".exe") {
+            continue;
+        }
+        // `%dp0%` already ends in a separator, and about half of the shims in
+        // the wild write another one after it. Collapse the pair — but not a
+        // leading `\\`, which is a UNC host, not a typo.
+        let expanded = token
+            .replace("%~dp0", &format!("{dir}\\"))
+            .replace("%dp0%", &format!("{dir}\\"));
+        let unc = if expanded.starts_with("\\\\") { 2 } else { 0 };
+        let (head, tail) = expanded.split_at(unc);
+        let target = std::path::PathBuf::from(format!("{head}{}", tail.replace("\\\\", "\\")));
+        if target.is_file() {
+            return literal(&target);
+        }
+    }
+
+    literal(&path)
+}
+
+/// Unix resolves PATH inside `execvp`, so the name is already the answer.
+#[cfg(not(windows))]
+pub fn program(bin: &str) -> String {
+    bin.to_string()
+}
+
+/// How many directories this process inherited on PATH.
+///
+/// A GUI app does not always get the PATH its owner sees in a shell, and "not
+/// found" reads very differently once you know the process was handed three
+/// directories instead of forty.
+pub fn path_entries() -> usize {
+    std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).count())
+        .unwrap_or(0)
+}
+
 fn claude_default_bin() -> String {
     std::env::var("AIS_CLAUDE_BIN").unwrap_or_else(|_| "claude".to_string())
 }
@@ -569,7 +691,11 @@ pub async fn cli_doctor(app: AppHandle, profile_id: String) -> ProbeResult {
         .cloned()
         .collect();
 
-    let mut cmd = tokio::process::Command::new(&profile.bin);
+    // Report the path that was actually spawned. "opencode is not on PATH" and
+    // "C:\\...\\opencode.exe exited 1" are different problems, and the profile's
+    // own `bin` cannot tell them apart.
+    let resolved = program(&profile.bin);
+    let mut cmd = tokio::process::Command::new(&resolved);
     cmd.arg("--version")
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
@@ -589,7 +715,7 @@ pub async fn cli_doctor(app: AppHandle, profile_id: String) -> ProbeResult {
             let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
             ProbeResult {
                 id: profile.id,
-                bin: profile.bin,
+                bin: resolved,
                 ok: output.status.success(),
                 // Some CLIs print their version on stderr and still exit 0.
                 version: if out.is_empty() { err.clone() } else { out },
@@ -603,21 +729,106 @@ pub async fn cli_doctor(app: AppHandle, profile_id: String) -> ProbeResult {
         }
         Ok(Err(e)) => ProbeResult {
             id: profile.id,
-            error: format!("{} is not on PATH: {e}", profile.bin),
-            bin: profile.bin,
+            error: format!(
+                "{} could not be spawned as `{resolved}`: {e}. PATH holds {} entries \
+                 here — if the CLI lives outside them, set this backend's binary to \
+                 an absolute path.",
+                profile.bin,
+                path_entries(),
+            ),
+            bin: resolved,
             ok: false,
             version: String::new(),
             missing_keys,
         },
         Err(_) => ProbeResult {
             id: profile.id,
-            bin: profile.bin,
+            bin: resolved,
             ok: false,
             version: String::new(),
             error: "`--version` timed out".into(),
             missing_keys,
         },
     }
+}
+
+/// Aliases Claude Code accepts for `--model`. It has no "list models" call.
+const CLAUDE_MODELS: &[&str] = &["fable", "opus", "sonnet", "haiku"];
+
+/// Ids `codex exec -m` takes. Codex has no "list models" call either.
+const CODEX_MODELS: &[&str] = &["gpt-5-codex", "gpt-5", "gpt-5-mini", "o4-mini"];
+
+/// Model ids the given backend actually understands.
+///
+/// A model name belongs to a backend, not to the app: `sonnet` means nothing
+/// to OpenCode and `anthropic/claude-sonnet-4-5` means nothing to Claude Code.
+/// OpenCode can be asked (`opencode models`, one `provider/model` per line);
+/// the others carry a static list, since neither CLI can enumerate its own.
+///
+/// An empty result is not an error — it means "this backend's catalogue is
+/// unknown here", and the caller should offer a free-text field instead of a
+/// picker.
+#[tauri::command]
+pub async fn cli_models(app: AppHandle, profile_id: String) -> Result<Vec<String>, String> {
+    let settings = load(&app);
+    let profile = resolve(&settings, Some(&profile_id));
+
+    let listed: Vec<String> = match profile.argv {
+        ArgvKind::OpenCode => ask_for_models(&profile, &["models"]).await?,
+        ArgvKind::Codex => CODEX_MODELS.iter().map(|m| m.to_string()).collect(),
+        // Claude's own aliases only apply when it is talking to Anthropic. The
+        // same argv pointed at another vendor's endpoint — `kimi-claude` — has
+        // an entirely different catalogue, so offer only what it defaults to.
+        ArgvKind::Claude if !profile.env.contains_key("ANTHROPIC_BASE_URL") => {
+            CLAUDE_MODELS.iter().map(|m| m.to_string()).collect()
+        }
+        _ => vec![],
+    };
+
+    let mut models: Vec<String> = Vec::with_capacity(listed.len() + 1);
+    for model in std::iter::once(profile.default_model.clone()).chain(listed) {
+        let model = model.trim().to_string();
+        if !model.is_empty() && !models.contains(&model) {
+            models.push(model);
+        }
+    }
+    Ok(models)
+}
+
+/// Run a backend's own "list models" subcommand and read stdout as a list.
+async fn ask_for_models(profile: &CliProfile, args: &[&str]) -> Result<Vec<String>, String> {
+    let mut cmd = tokio::process::Command::new(program(&profile.bin));
+    cmd.args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    #[cfg(windows)]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let out = tokio::time::timeout(std::time::Duration::from_secs(30), cmd.output())
+        .await
+        .map_err(|_| format!("`{} {}` timed out", profile.bin, args.join(" ")))?
+        .map_err(|e| format!("{} is not runnable: {e}", profile.bin))?;
+
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        return Err(if err.is_empty() {
+            format!("`{} {}` failed", profile.bin, args.join(" "))
+        } else {
+            err
+        });
+    }
+
+    Ok(String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .map(|line| line.trim().to_string())
+        // Drop banner lines: an id is one token, and OpenCode's are qualified.
+        .filter(|line| !line.is_empty() && !line.contains(char::is_whitespace))
+        .collect())
 }
 
 #[cfg(test)]
@@ -629,6 +840,40 @@ mod tests {
             .iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect()
+    }
+
+    /// npm shims are the only thing standing between a Windows box and a
+    /// "program not found" for a CLI that is plainly installed.
+    #[cfg(windows)]
+    #[test]
+    fn an_npm_cmd_shim_resolves_to_the_exe_it_calls() {
+        let dir = std::env::temp_dir().join(format!("ais-shim-{}", std::process::id()));
+        let bin = dir.join("node_modules").join("thing").join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+
+        let exe = bin.join("thing.exe");
+        std::fs::write(&exe, b"not really an exe").unwrap();
+
+        // The shape npm writes: everything relative to the shim's own dir.
+        let shim = dir.join("thing.cmd");
+        let target = format!(
+            "\"%dp0%{sep}node_modules{sep}thing{sep}bin{sep}thing.exe\" %*",
+            sep = std::path::MAIN_SEPARATOR,
+        );
+        std::fs::write(&shim, format!("@ECHO off\r\nSET dp0=%~dp0\r\n{target}\r\n")).unwrap();
+
+        let resolved = program(&shim.to_string_lossy());
+        assert!(
+            std::path::Path::new(&resolved).ends_with("thing.exe"),
+            "shim resolved to {resolved}"
+        );
+
+        // A shim pointing at nothing stays the shim: better a batch file that
+        // might run than a path that certainly will not.
+        std::fs::remove_file(&exe).unwrap();
+        assert_eq!(program(&shim.to_string_lossy()), shim.to_string_lossy());
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -711,3 +956,4 @@ mod tests {
         assert_eq!(all.last().unwrap().id, "my-cli");
     }
 }
+

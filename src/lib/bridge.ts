@@ -114,6 +114,23 @@ export async function cliDoctor(profileId: string): Promise<CliProbe> {
   }
 }
 
+/**
+ * Model ids a backend understands, asked of the backend itself where it can
+ * answer (`opencode models`) and hard-coded where it cannot.
+ *
+ * An empty list means the catalogue is unknown on this device — the caller
+ * should fall back to a free-text field rather than an empty picker, since a
+ * browser or a phone has no CLI to ask.
+ */
+export async function cliModels(profileId: string): Promise<string[]> {
+  if (!isTauri()) return [];
+  try {
+    return await invoke<string[]>("cli_models", { profileId });
+  } catch {
+    return [];
+  }
+}
+
 export async function claudeDoctor(): Promise<string> {
   if (!isTauri()) return "";
   try {

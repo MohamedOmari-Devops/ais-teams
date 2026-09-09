@@ -101,6 +101,7 @@ pub fn run() {
             providers::read_settings,
             providers::write_settings,
             providers::cli_doctor,
+            providers::cli_models,
             runner::run_agent,
             runner::cancel_agent_run,
             runner::active_runs,

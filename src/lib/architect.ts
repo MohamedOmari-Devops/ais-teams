@@ -18,6 +18,7 @@
 import { pb } from "./pb";
 import { remember } from "./context";
 import { dispatchTurn, postUserMessage } from "./orchestrator";
+import { readSettings } from "./bridge";
 import type {
   Agent,
   Channel,
@@ -141,13 +142,36 @@ export async function ensureArchitect(
   return { agent, channel };
 }
 
+/** Model names Claude Code takes. They mean nothing to any other CLI. */
+const CLAUDE_ALIASES = ["fable", "opus", "sonnet", "haiku"];
+
+/**
+ * The architect earns the best model available, but "best" is spelled
+ * differently per backend: `opus` on Claude Code, `provider/model` on
+ * OpenCode. Only pin a name when Claude Code is the one being spawned;
+ * otherwise inherit the project's default, which is the field the settings
+ * panel actually fills from that backend's own catalogue.
+ */
+async function architectModel(project: Project): Promise<string> {
+  const settings = await readSettings();
+  const id = project.cli_profile || settings.defaultProfile;
+  const profile = settings.profiles.find((p) => p.id === id);
+  // A device with no CLI (browser, phone) knows nothing about backends; leave
+  // the choice to the project rather than guessing on its behalf.
+  if (!profile) return "";
+  // Claude's argv pointed at another vendor's endpoint is not Claude.
+  const anthropic = profile.argv === "claude" && !profile.env.ANTHROPIC_BASE_URL;
+  return anthropic ? "opus" : "";
+}
+
 async function ensureAgent(project: Project): Promise<Agent> {
+  const model = await architectModel(project);
   const defaults = {
     project: project.id,
     name: ARCHITECT_NAME,
     role: ARCHITECT_ROLE,
     instructions: PERSONA,
-    model: "opus",
+    model,
     effort: "high",
     permission_mode: "acceptEdits",
     avatar_color: "#c86ee0",
@@ -171,17 +195,26 @@ async function ensureAgent(project: Project): Promise<Agent> {
         `project = "${project.id}" && name = "${ARCHITECT_NAME}"`,
       );
 
+    const patch: Partial<Agent> = {};
+
     // Upgrade an older persona in place. This changes the persona hash, which
     // makes the next turn start a fresh Claude session — the only way an edited
     // system prompt actually reaches the model.
     if (!found.instructions?.includes(`persona ${PERSONA_VERSION}`)) {
-      return pb.collection("agents").update<Agent>(found.id, {
-        instructions: PERSONA,
-        role: ARCHITECT_ROLE,
-        verbose_output: true,
-      });
+      patch.instructions = PERSONA;
+      patch.role = ARCHITECT_ROLE;
+      patch.verbose_output = true;
     }
-    return found;
+
+    // The architect is not in the agent list, so a Claude alias left on it by
+    // an earlier backend cannot be corrected by hand — and OpenCode answers a
+    // name it cannot parse with an error naming nothing but a log reference.
+    if (found.model !== model && CLAUDE_ALIASES.includes(found.model ?? "")) {
+      patch.model = model;
+    }
+
+    if (Object.keys(patch).length === 0) return found;
+    return pb.collection("agents").update<Agent>(found.id, patch);
   } catch {
     return pb.collection("agents").create<Agent>(defaults);
   }

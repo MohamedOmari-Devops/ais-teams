@@ -9,7 +9,7 @@ import SettingsDialog, { type SectionId } from "./components/SettingsDialog";
 import PluginsDialog from "./components/PluginsDialog";
 import ArchitectDialog from "./components/ArchitectDialog";
 import { pb, isAuthed } from "./lib/pb";
-import { claudeDoctor, hostInfo, isTauri, readSettings } from "./lib/bridge";
+import { cliDoctor, hostInfo, isTauri, readSettings } from "./lib/bridge";
 import { initRunListeners, startQueueWorker } from "./lib/orchestrator";
 import { isArchitectAgent, isArchitectChannel } from "./lib/architect";
 import { useApp } from "./store";
@@ -44,24 +44,34 @@ export default function App() {
     removeMessage,
     setHost,
     hostCanRun,
-    claudeVersion,
+    runnerLabel,
+    runnerError,
   } = useApp();
 
-  // ---- host capabilities: can this device actually spawn Claude Code? ----
+  // ---- host capabilities: can this device actually spawn the backend? ----
   useEffect(() => {
     if (!authed) return;
     void (async () => {
       const info = await hostInfo();
-      const version = info.canRunAgents ? await claudeDoctor() : "";
-      // Say which CLI the runner actually spawns: with several backends
-      // configured, "runner ready" alone does not answer the question that
-      // matters when a turn comes back wrong.
+      // Probe the backend that actually runs turns, not Claude Code. Reading
+      // Claude's version under an "OpenCode" label answered the wrong
+      // question — and reported the runner offline whenever Claude Code was
+      // simply not installed, which is a valid setup for every other backend.
       const settings = info.canRunAgents ? await readSettings() : null;
+      const probe = settings ? await cliDoctor(settings.defaultProfile) : null;
       const backend =
         settings?.profiles.find((p) => p.id === settings.defaultProfile)?.label ??
         "";
-      const label = [backend, version].filter(Boolean).join(" · ");
-      setHost(info.canRunAgents && !version.startsWith("unavailable"), label);
+      const label = [backend, probe?.version].filter(Boolean).join(" · ");
+      // A device that can spawn CLIs stays the host even when the backend it
+      // was pointed at is broken: queueing the turn for "a desktop host" when
+      // this *is* the desktop host means it is never run at all. The probe
+      // failure is reported instead, where it can be acted on.
+      setHost(
+        info.canRunAgents,
+        label,
+        probe && !probe.ok ? probe.error || `${backend} is not runnable` : "",
+      );
       await initRunListeners();
     })();
   }, [authed, setHost]);
@@ -105,10 +115,27 @@ export default function App() {
     const visibleChannels = channels.filter((c) => !isArchitectChannel(c));
     setChannels(visibleChannels);
     setAgents(agents.filter((a) => !isArchitectAgent(a)));
-    if (!channel || channel.project !== project.id) {
+
+    // Read the selection now rather than closing over it. This runs from a
+    // realtime subscription that outlives the render it was created in, and a
+    // captured `channel` would replay a stale value — which is what snapped
+    // the view back to the first channel whenever any channel or agent row
+    // changed.
+    const current = useApp.getState().channel;
+    const fresh = current
+      ? visibleChannels.find((c) => c.id === current.id)
+      : undefined;
+
+    if (!fresh || fresh.project !== project.id) {
+      // Nothing selected, or the selection belongs to another project or was
+      // deleted elsewhere.
       setChannel(visibleChannels[0] ?? null);
+    } else if (fresh.updated !== current?.updated) {
+      // Same channel, edited on another device: take the new row so its topic
+      // and agent list are not stale.
+      setChannel(fresh);
     }
-  }, [project, channel, setChannels, setAgents, setChannel]);
+  }, [project, setChannels, setAgents, setChannel]);
 
   useEffect(() => {
     void loadScope();
@@ -123,7 +150,16 @@ export default function App() {
     const channelId = channel.id;
     let cancelled = false;
     let unsubscribe: (() => void) | undefined;
-    let signature = "";
+
+    // Nothing has been fetched for this channel yet. `null` rather than `""`:
+    // an empty channel signs as the empty string, and comparing it against a
+    // string seed made "no messages" indistinguishable from "no change" —
+    // which left the previous channel's transcript on screen after a switch.
+    let signature: string | null = null;
+
+    // Drop the outgoing transcript rather than showing it under the new
+    // channel's name while the fetch is in flight.
+    setMessages([]);
 
     const load = async () => {
       try {
@@ -269,7 +305,11 @@ export default function App() {
         title="CLI backends"
         className="absolute bottom-2 left-72 z-10 font-mono text-[10px] text-fog-300 hover:text-fog-100"
       >
-        {hostCanRun ? `runner ready · ${claudeVersion}` : "runner offline"}
+        {!hostCanRun
+          ? "runner offline"
+          : runnerError
+            ? `runner failing · ${runnerLabel || "backend"}`
+            : `runner ready · ${runnerLabel}`}
       </button>
 
       {editing && (

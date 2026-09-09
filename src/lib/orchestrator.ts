@@ -19,6 +19,7 @@ import {
   onRunDelta,
   onRunEnd,
   onRunStart,
+  readSettings,
   runAgent,
 } from "./bridge";
 import { harvestFacts, packFor, remember } from "./context";
@@ -91,15 +92,46 @@ function personaHash(agent: Agent): string {
  * Claude model, which means nothing to Codex or Kimi, so an agent that picks
  * its own CLI starts from that CLI's default model unless it names one itself.
  */
-function backendFor(
+async function backendFor(
   project: Project,
   agent: Agent,
-): { provider?: string; model?: string } {
+): Promise<{ provider?: string; model?: string }> {
   const provider = agent.cli_profile || project.cli_profile || "";
   const inherits =
     !agent.cli_profile || agent.cli_profile === project.cli_profile;
-  const model = agent.model || (inherits ? project.default_model : "") || "";
+  let model = agent.model || (inherits ? project.default_model : "") || "";
+
+  // A Claude alias is a leftover from a project that used to run on Claude
+  // Code: rows keep it long after the backend changed, and it is fatal —
+  // OpenCode answers a name it cannot parse with an error naming nothing but
+  // a log reference. Fall back to the project default, which the settings
+  // panel fills from the live backend's own catalogue.
+  if (CLAUDE_ALIASES.includes(model) && !(await runsOnAnthropic(provider))) {
+    model = CLAUDE_ALIASES.includes(project.default_model)
+      ? ""
+      : project.default_model || "";
+  }
+
   return { provider: provider || undefined, model: model || undefined };
+}
+
+/** Model names Claude Code takes. They mean nothing to any other CLI. */
+const CLAUDE_ALIASES = ["fable", "opus", "sonnet", "haiku"];
+
+/**
+ * Whether a backend id ends up talking to Anthropic, and so understands
+ * `sonnet` and friends. An unknown id — a device with no CLI at all — counts
+ * as Anthropic, since guessing the other way would strip a model that the
+ * host about to run the turn may well accept.
+ */
+async function runsOnAnthropic(providerId: string): Promise<boolean> {
+  const settings = await readSettings();
+  const profile = settings.profiles.find(
+    (p) => p.id === (providerId || settings.defaultProfile),
+  );
+  if (!profile) return true;
+  // Claude's argv pointed at another vendor's endpoint is not Claude.
+  return profile.argv === "claude" && !profile.env.ANTHROPIC_BASE_URL;
 }
 
 function runBrief(project: Project, channel: Channel, pack: string): string {
@@ -444,7 +476,7 @@ export async function dispatchTurn(
       prompt,
       instructions: agent.instructions,
       contextPack: brief,
-      ...backendFor(project, agent),
+      ...(await backendFor(project, agent)),
       resumeSessionId: (await resumeIdFor(agent, channel.id)) || undefined,
       permissionMode: agent.permission_mode || undefined,
       effort: agent.effort || undefined,
@@ -577,7 +609,7 @@ export function startQueueWorker(): () => void {
       prompt: run.prompt,
       instructions: agent.instructions,
       contextPack: runBrief(project, channel, pack.text),
-      ...backendFor(project, agent),
+      ...(await backendFor(project, agent)),
       resumeSessionId: (await resumeIdFor(agent, channel.id)) || undefined,
       permissionMode: agent.permission_mode || undefined,
       effort: agent.effort || undefined,

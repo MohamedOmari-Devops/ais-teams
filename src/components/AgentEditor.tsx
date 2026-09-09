@@ -17,12 +17,11 @@ import {
 } from "@mui/material";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { pb } from "../lib/pb";
-import { readSettings } from "../lib/bridge";
+import { cliModels, readSettings } from "../lib/bridge";
 import { useApp } from "../store";
 import { ink, fog } from "../theme";
 import type { Agent, CliProfile } from "../lib/types";
 
-const MODELS = ["", "fable", "opus", "sonnet", "haiku"];
 const EFFORTS = ["", "low", "medium", "high", "xhigh", "max"];
 const MODES = ["", "manual", "acceptEdits", "auto", "plan", "bypassPermissions"];
 const COLORS = ["#106bfb", "#3fbf7f", "#e0a44a", "#e2585f", "#4aa8e0", "#c86ee0"];
@@ -47,7 +46,9 @@ export default function AgentEditor({
       name: "",
       role: "",
       instructions: "",
-      model: "sonnet",
+      // Blank inherits the project default, which is picked from whichever
+      // backend actually runs the turn.
+      model: "",
       effort: "medium",
       permission_mode: "acceptEdits",
       avatar_color: COLORS[0],
@@ -66,12 +67,18 @@ export default function AgentEditor({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [profiles, setProfiles] = useState<CliProfile[]>([]);
+  /** Models the effective backend accepts; empty when its catalogue is unknown. */
+  const [models, setModels] = useState<string[]>([]);
+  const [defaultProfile, setDefaultProfile] = useState("");
 
   // The backend list is machine-local, so it is read from the runner rather
   // than from the project. On a device with no CLI it comes back empty and the
   // picker falls back to whatever id is already stored.
   useEffect(() => {
-    void readSettings().then((s) => setProfiles(s.profiles));
+    void readSettings().then((s) => {
+      setProfiles(s.profiles);
+      setDefaultProfile(s.defaultProfile);
+    });
   }, []);
 
   /**
@@ -82,7 +89,28 @@ export default function AgentEditor({
    * into free text against that CLI's own catalogue.
    */
   const backend = profiles.find((p) => p.id === form.cli_profile);
-  const claudeShaped = !backend || backend.argv === "claude";
+
+  /**
+   * Where the model names come from: the agent's own backend, or the one it
+   * inherits. Inheriting is not the same as "Claude" — a project on OpenCode
+   * hands down OpenCode's catalogue, not `sonnet` and friends.
+   */
+  const effectiveBackend =
+    form.cli_profile || project?.cli_profile || defaultProfile || "";
+
+  useEffect(() => {
+    let live = true;
+    if (!effectiveBackend) {
+      setModels([]);
+      return;
+    }
+    void cliModels(effectiveBackend).then((list) => {
+      if (live) setModels(list);
+    });
+    return () => {
+      live = false;
+    };
+  }, [effectiveBackend]);
 
   const unsupported = backend
     ? (
@@ -246,7 +274,7 @@ export default function AgentEditor({
         )}
 
         <Stack direction="row" spacing={1.5}>
-          {claudeShaped ? (
+          {models.length > 0 ? (
             <FormControl size="small" fullWidth>
               <InputLabel>Model</InputLabel>
               <Select
@@ -254,9 +282,15 @@ export default function AgentEditor({
                 value={form.model ?? ""}
                 onChange={(e) => set("model", e.target.value)}
               >
-                {MODELS.map((m) => (
-                  <MenuItem key={m} value={m}>
-                    {m || "project default"}
+                <MenuItem value="">project default</MenuItem>
+                {/* A stored model the backend stopped listing still renders,
+                    rather than being silently blanked on open. */}
+                {form.model && !models.includes(form.model) && (
+                  <MenuItem value={form.model}>{form.model} (not listed)</MenuItem>
+                )}
+                {models.map((m) => (
+                  <MenuItem key={m} value={m} sx={{ fontSize: 12 }}>
+                    {m}
                   </MenuItem>
                 ))}
               </Select>
@@ -269,7 +303,7 @@ export default function AgentEditor({
               value={form.model ?? ""}
               onChange={(e) => set("model", e.target.value)}
               placeholder={backend?.defaultModel || "backend default"}
-              helperText={`Named as ${backend?.label} names it`}
+              helperText={`Named as ${backend?.label ?? "the backend"} names it`}
               slotProps={{
                 input: { sx: { fontFamily: "var(--font-mono)", fontSize: 12 } },
               }}

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -19,7 +19,7 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import KeyboardArrowRightRoundedIcon from "@mui/icons-material/KeyboardArrowRightRounded";
 import { pb, currentUserId } from "../lib/pb";
-import { isTauri, pickFolder, scanAgentFiles } from "../lib/bridge";
+import { cliModels, isTauri, pickFolder, scanAgentFiles } from "../lib/bridge";
 import { useGlobalSections, useGlobalSettings } from "./GlobalSettings";
 import {
   Mono,
@@ -34,7 +34,6 @@ import {
 import { ink, fog } from "../theme";
 import type { Agent, AgentFile, Project } from "../lib/types";
 
-const MODELS = ["fable", "opus", "sonnet", "haiku"];
 const COLORS = ["#106bfb", "#3fbf7f", "#e0a44a", "#e2585f", "#4aa8e0", "#c86ee0"];
 
 const slugify = (value: string) =>
@@ -63,7 +62,10 @@ const PROJECT_DEFAULTS: Partial<Project> = {
   root_path: "",
   agents_dir: "",
   color: COLORS[0],
-  default_model: "sonnet",
+  // Blank means "whatever this backend defaults to". Naming a Claude alias
+  // here is how a project switched to another CLI ends up asking it for a
+  // model it has never heard of.
+  default_model: "",
   cli_profile: "",
   context_budget: 3000,
   archived: false,
@@ -108,6 +110,8 @@ export default function SettingsDialog({
   const [error, setError] = useState("");
   const [found, setFound] = useState<AgentFile[] | null>(null);
   const [notice, setNotice] = useState("");
+  /** Models the selected backend accepts; empty when its catalogue is unknown. */
+  const [models, setModels] = useState<string[]>([]);
   const global = useGlobalSettings();
   const content = useRef<HTMLDivElement>(null);
 
@@ -197,7 +201,11 @@ export default function SettingsDialog({
           name: file.name,
           role: file.description,
           instructions: file.instructions,
-          model: MODELS.includes(file.model) ? file.model : "",
+          // Judged against the backend this project actually runs on. When
+          // its catalogue is unknown the name is taken as written: an agent
+          // file may legitimately target a CLI this device has never seen.
+          model:
+            models.length === 0 || models.includes(file.model) ? file.model : "",
           avatar_color: file.color || COLORS[created % COLORS.length],
           allowed_tools: file.tools,
           enabled: true,
@@ -234,6 +242,28 @@ export default function SettingsDialog({
   const defaultBackendLabel =
     profiles.find((p) => p.id === global.settings?.defaultProfile)?.label ??
     "the machine default";
+
+  /** The backend this project's turns actually land on. */
+  const backendId = form.cli_profile || global.settings?.defaultProfile || "";
+  const backend = profiles.find((p) => p.id === backendId);
+
+  // Model names belong to a backend: `sonnet` is meaningless to OpenCode and
+  // `anthropic/claude-sonnet-4-5` is meaningless to Claude Code. The list is
+  // read from the CLI itself where it can answer, so switching backend
+  // switches the picker rather than leaving Claude's aliases on screen.
+  useEffect(() => {
+    let live = true;
+    if (!backendId) {
+      setModels([]);
+      return;
+    }
+    void cliModels(backendId).then((list) => {
+      if (live) setModels(list);
+    });
+    return () => {
+      live = false;
+    };
+  }, [backendId]);
 
   // ------------------------------------------------------------- sections
 
@@ -515,17 +545,47 @@ export default function SettingsDialog({
             field: "default_model",
             group: "Project",
             name: "Default model",
-            keywords: "opus sonnet haiku fable",
-            description:
-              "Used by any agent that does not name its own. An agent on a different CLI starts from that backend's default model instead — a Claude model name means nothing to Codex.",
-            control: (
-              <SelectControl
-                value={form.default_model ?? "sonnet"}
-                onChange={(v) => set("default_model", v)}
-                options={MODELS.map((m) => ({ value: m, label: m }))}
-                width={260}
-              />
+            keywords: "opus sonnet haiku fable gpt provider catalogue",
+            description: (
+              <>
+                Named the way{" "}
+                <strong>{backend?.label ?? "the machine default backend"}</strong>{" "}
+                names it. Used by any agent that does not name its own; an agent
+                on a different CLI starts from that backend's default instead,
+                since a Claude alias means nothing to Codex or OpenCode.
+              </>
             ),
+            control:
+              models.length > 0 ? (
+                <SelectControl
+                  value={form.default_model ?? ""}
+                  onChange={(v) => set("default_model", v)}
+                  options={[
+                    { value: "", label: `Backend default` },
+                    // A stored model the backend no longer lists still has to
+                    // render, or opening settings would silently rewrite it.
+                    ...(form.default_model &&
+                    !models.includes(form.default_model)
+                      ? [
+                          {
+                            value: form.default_model,
+                            label: `${form.default_model} (not listed)`,
+                          },
+                        ]
+                      : []),
+                    ...models.map((m) => ({ value: m, label: m })),
+                  ]}
+                  width={360}
+                />
+              ) : (
+                <TextControl
+                  value={form.default_model ?? ""}
+                  onChange={(v) => set("default_model", v)}
+                  mono
+                  width={360}
+                  placeholder={backend?.defaultModel || "backend default"}
+                />
+              ),
           }),
           row({
             id: "context_budget",
@@ -550,7 +610,7 @@ export default function SettingsDialog({
     // The row builders close over this render's `form` and handlers on purpose;
     // the deps below are everything that actually changes what a row shows.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form, project, found, busy, profiles, defaultBackendLabel]);
+  }, [form, project, found, busy, profiles, defaultBackendLabel, backend, models]);
 
   const sections = scope === "project" ? projectSections : globalSections;
   const searching = query.trim().length > 0;

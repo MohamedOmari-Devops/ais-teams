@@ -227,16 +227,20 @@ struct Plan {
     stdin: Option<String>,
 }
 
-fn build_plan(req: &AgentRunRequest, profile: &CliProfile, session_id: &str) -> Plan {
-    let prompt = compose_user_prompt(req, profile);
-    let system = compose_system_prompt(req);
-    let model = req
-        .model
+/// The model this turn asks for: the agent's, else the backend's own default.
+fn effective_model(req: &AgentRunRequest, profile: &CliProfile) -> String {
+    req.model
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .unwrap_or(profile.default_model.as_str())
-        .to_string();
+        .to_string()
+}
+
+fn build_plan(req: &AgentRunRequest, profile: &CliProfile, session_id: &str) -> Plan {
+    let prompt = compose_user_prompt(req, profile);
+    let system = compose_system_prompt(req);
+    let model = effective_model(req, profile);
 
     let mut argv = match profile.argv {
         ArgvKind::Claude => claude_argv(req, profile, session_id, &system, &model),
@@ -395,9 +399,14 @@ fn codex_argv(req: &AgentRunRequest, profile: &CliProfile, model: &str) -> Vec<S
 }
 
 /// `opencode run` — one message, one answer, plain text on stdout.
+///
+/// OpenCode names a model `provider/model`. Handed a bare Claude alias — which
+/// is what a project that started on Claude Code hands down — it dies with an
+/// opaque `UnknownError` carrying nothing but a log reference, so drop the
+/// name and let OpenCode fall back to its own configured default instead.
 fn opencode_argv(model: &str) -> Vec<String> {
     let mut argv: Vec<String> = vec!["run".into()];
-    if !model.is_empty() {
+    if model.contains('/') {
         argv.push("--model".into());
         argv.push(model.to_string());
     }
@@ -451,8 +460,14 @@ impl AgentRunRequest {
     }
 }
 
-fn build_command(plan: &Plan, profile: &CliProfile, settings: &Settings, cwd: &str) -> Command {
-    let mut cmd = Command::new(&profile.bin);
+fn build_command(
+    plan: &Plan,
+    profile: &CliProfile,
+    settings: &Settings,
+    cwd: &str,
+    program: &str,
+) -> Command {
+    let mut cmd = Command::new(program);
     if !cwd.trim().is_empty() {
         cmd.current_dir(cwd);
     }
@@ -605,6 +620,19 @@ pub async fn run_agent(
         return Err(format!("run '{}' is already executing", request.run_id));
     }
 
+    // OpenCode names a model `provider/model`. A project that started on Claude
+    // Code hands down `sonnet`, and OpenCode answers that with an `UnknownError`
+    // whose whole content is a log reference — so say what is wrong here, where
+    // the setting that caused it can actually be found.
+    let model = effective_model(&request, &profile);
+    if profile.argv == ArgvKind::OpenCode && !model.is_empty() && !model.contains('/') {
+        return Err(format!(
+            "{} names models `provider/model`, and this turn asked for `{model}`. \
+             Pick one of its own models in settings — `{} models` lists them.",
+            profile.label, profile.bin
+        ));
+    }
+
     let session_id = request
         .resume_session_id
         .clone()
@@ -630,10 +658,23 @@ pub async fn run_agent(
         }
     }
 
-    let mut cmd = build_command(&plan, &profile, &settings, &request.cwd);
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("spawn {} failed: {e}", profile.bin))?;
+    // What the profile calls the binary is a name; what Windows can spawn is a
+    // path. Resolve once, and say both in the error when they differ.
+    let program = providers::program(&profile.bin);
+    let mut cmd = build_command(&plan, &profile, &settings, &request.cwd, &program);
+    let mut child = cmd.spawn().map_err(|e| {
+        if program == profile.bin {
+            format!(
+                "spawn {} failed: {e}. Nothing named that on the {} directories of \
+                 PATH this app inherited — set an absolute path for the binary under \
+                 Global settings, Backends.",
+                profile.bin,
+                providers::path_entries(),
+            )
+        } else {
+            format!("spawn {} ({program}) failed: {e}", profile.bin)
+        }
+    })?;
 
     let mut stdin = child.stdin.take().ok_or("no stdin on child process")?;
     let stdout = child.stdout.take().ok_or("no stdout on child process")?;
@@ -955,6 +996,23 @@ mod tests {
         assert!(!argv.contains("--session-id"));
         assert!(plan.argv.last().unwrap() == "-");
         assert!(plan.stdin.is_some());
+    }
+
+    /// A project that began on Claude Code carries `sonnet` in `default_model`.
+    /// OpenCode answers a name it cannot parse with an `UnknownError` that says
+    /// only "check server logs", so the name must not reach it.
+    #[test]
+    fn opencode_only_takes_a_qualified_model_name() {
+        let mut req = request();
+
+        req.model = Some("sonnet".into());
+        let bare = build_plan(&req, &profile("opencode"), "sess-1");
+        assert!(!bare.argv.contains(&"--model".to_string()));
+
+        req.model = Some("anthropic/claude-sonnet-4-5".into());
+        let qualified = build_plan(&req, &profile("opencode"), "sess-1");
+        let argv = qualified.argv.join(" ");
+        assert!(argv.contains("--model anthropic/claude-sonnet-4-5"));
     }
 
     #[test]
